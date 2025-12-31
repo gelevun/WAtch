@@ -1,21 +1,21 @@
 {
   "name": "WhatsApp Chat Viewer",
-  "short_name": "WA Viewer",
-  "description": "WhatsApp export dosyalarını görüntüleyin",
-  "start_url": "/WAtch/",
+  "short_name": "WA Chat Viewer",
+  "description": "WhatsApp sohbet dosyalarını görüntüleyin",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#075e54",
+  "background_color": "#0b141a",
   "theme_color": "#075e54",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23075e54'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white'%3E💬%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%230075e54' width='100' height='100'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white'%3E💬%3C/text%3E%3C/svg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23075e54'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white'%3E💬%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%230075e54' width='100' height='100'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white'%3E💬%3C/text%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

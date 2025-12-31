@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="WhatsApp sohbet görüntüleyici - ZIP veya klasör yükleyerek sohbetleri görüntüleyin">
+  <meta name="theme-color" content="#075e54">
+  <title>WhatsApp Chat Viewer</title>
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- CDN Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #0b141a;
+      color: #e9edef;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    
+    /* Header */
+    .header {
+      background: #202c33;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #313d45;
+    }
+    
+    .header h1 {
+      font-size: 16px;
+      font-weight: 500;
+      flex: 1;
+    }
+    
+    .header button {
+      background: #2a3942;
+      border: none;
+      color: #e9edef;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    .header button:hover {
+      background: #344249;
+    }
+    
+    /* Upload Area */
+    #upload-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    #upload-area.hidden {
+      display: none;
+    }
+    
+    .upload-box {
+      border: 2px dashed #313d45;
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 400px;
+      width: 100%;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .upload-box:hover {
+      border-color: #00a884;
+      background: #202c33;
+    }
+    
+    .upload-box.dragover {
+      border-color: #00a884;
+      background: #202c33;
+    }
+    
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    
+    .upload-text {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+    
+    .upload-hint {
+      font-size: 14px;
+      color: #8696a0;
+      margin-top: 8px;
+    }
+    
+    input[type="file"] {
+      display: none;
+    }
+    
+    /* Chat Area */
+    #chat-area {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      background: #0b141a;
+    }
+    
+    #chat-area.visible {
+      display: flex;
+    }
+    
+    .chat-header {
+      background: #202c33;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #313d45;
+    }
+    
+    .chat-title {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    .chat-info {
+      font-size: 12px;
+      color: #8696a0;
+    }
+    
+    /* Messages Container */
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background-image: 
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    
+    .messages-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .messages-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    .messages-container::-webkit-scrollbar-thumb {
+      background: #313d45;
+      border-radius: 3px;
+    }
+    
+    /* Date Separator */
+    .date-separator {
+      text-align: center;
+      margin: 16px 0;
+      position: relative;
+    }
+    
+    .date-separator::before,
+    .date-separator::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 30%;
+      height: 1px;
+      background: #313d45;
+    }
+    
+    .date-separator::before {
+      left: 0;
+    }
+    
+    .date-separator::after {
+      right: 0;
+    }
+    
+    .date-text {
+      display: inline-block;
+      background: #202c33;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #8696a0;
+      position: relative;
+    }
+    
+    /* Message Bubble */
+    .message-group {
+      margin-bottom: 4px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .message-bubble {
+      max-width: 65%;
+      padding: 6px 8px;
+      border-radius: 8px;
+      margin-bottom: 2px;
+      word-wrap: break-word;
+      position: relative;
+    }
+    
+    .message-bubble.sent {
+      background: #005c4b;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    
+    .message-bubble.received {
+      background: #202c33;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    
+    .message-time {
+      font-size: 11px;
+      color: #8696a0;
+      margin-top: 4px;
+      text-align: right;
+    }
+    
+    .message-bubble.received .message-time {
+      text-align: left;
+    }
+    
+    .message-sender {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #53bdeb;
+    }
+    
+    .message-text {
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    /* Media Preview */
+    .media-preview {
+      margin-top: 8px;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+    }
+    
+    .media-preview img {
+      width: 100%;
+      max-width: 300px;
+      height: auto;
+      display: block;
+    }
+    
+    .media-preview.audio {
+      background: #2a3942;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .media-preview.file {
+      background: #2a3942;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .media-icon {
+      font-size: 24px;
+    }
+    
+    .media-info {
+      flex: 1;
+    }
+    
+    .media-name {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .media-size {
+      font-size: 12px;
+      color: #8696a0;
+      margin-top: 2px;
+    }
+    
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      color: #8696a0;
+    }
+    
+    .spinner {
+      border: 3px solid #313d45;
+      border-top: 3px solid #00a884;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin-right: 12px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.active {
+      display: flex;
+    }
+    
+    .modal-content {
+      max-width: 90%;
+      max-height: 90%;
+      position: relative;
+    }
+    
+    .modal-close {
+      position: absolute;
+      top: -40px;
+      right: 0;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+    }
+    
+    .modal-content img {
+      max-width: 100%;
+      max-height: 90vh;
+    }
+    
+    .modal-content audio {
+      width: 100%;
+      min-width: 300px;
+    }
+    
+    .modal-content iframe {
+      width: 90vw;
+      height: 90vh;
+      border: none;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .message-bubble {
+        max-width: 85%;
+      }
+      
+      .upload-box {
+        padding: 30px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Upload Area -->
+    <div id="upload-area">
+      <div class="upload-box" id="upload-box">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">WhatsApp Sohbet Dosyası Yükle</div>
+        <div class="upload-hint">
+          ZIP dosyası veya klasör seçin<br>
+          <small>(Sürükle-bırak desteklenir)</small>
+        </div>
+        <input type="file" id="file-input" webkitdirectory multiple>
+        <input type="file" id="zip-input" accept=".zip">
+      </div>
+      <div style="margin-top: 20px; display: flex; gap: 12px;">
+        <button onclick="document.getElementById('zip-input').click()" style="background: #00a884; border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer;">ZIP Yükle</button>
+        <button onclick="document.getElementById('file-input').click()" style="background: #2a3942; border: none; color: #e9edef; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Klasör Seç</button>
+      </div>
+    </div>
+    
+    <!-- Chat Area -->
+    <div id="chat-area">
+      <div class="chat-header">
+        <div class="chat-title" id="chat-title">Sohbet</div>
+        <div class="chat-info" id="chat-info"></div>
+        <button onclick="resetApp()">Yeni Yükle</button>
+      </div>
+      <div class="messages-container" id="messages-container">
+        <div class="loading">
+          <div class="spinner"></div>
+          <span>Yükleniyor...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Media Modal -->
+  <div class="modal" id="media-modal">
+    <button class="modal-close" onclick="closeMediaModal()">×</button>
+    <div class="modal-content" id="modal-content"></div>
+  </div>
+  
+  <script>
+    // Global state
+    let messages = [];
+    let mediaFiles = new Map();
+    let db = null;
+    let currentDate = null;
+    let firstSender = null; // İlk mesajı gönderen kişi (kullanıcı)
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      initIndexedDB();
+      setupFileUpload();
+      registerServiceWorker();
+    });
+    
+    // Register service worker
+    function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('service-worker.js')
+          .then((registration) => {
+            console.log('Service Worker registered:', registration);
+          })
+          .catch((error) => {
+            console.log('Service Worker registration failed:', error);
+          });
+      }
+    }
+    
+    // IndexedDB initialization
+    function initIndexedDB() {
+      const request = indexedDB.open('WhatsAppChatViewer', 1);
+      
+      request.onerror = () => {
+        console.error('IndexedDB error:', request.error);
+      };
+      
+      request.onsuccess = () => {
+        db = request.result;
+      };
+      
+      request.onupgradeneeded = (event) => {
+        db = event.target.result;
+        if (!db.objectStoreNames.contains('media')) {
+          db.createObjectStore('media');
+        }
+      };
+    }
+    
+    // File upload setup
+    function setupFileUpload() {
+      const uploadBox = document.getElementById('upload-box');
+      const fileInput = document.getElementById('file-input');
+      const zipInput = document.getElementById('zip-input');
+      
+      // Drag and drop
+      uploadBox.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadBox.classList.add('dragover');
+      });
+      
+      uploadBox.addEventListener('dragleave', () => {
+        uploadBox.classList.remove('dragover');
+      });
+      
+      uploadBox.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadBox.classList.remove('dragover');
+        
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+          const zipFile = files.find(f => f.name.endsWith('.zip'));
+          if (zipFile) {
+            handleZipFile(zipFile);
+          } else {
+            handleDirectory(files);
+          }
+        }
+      });
+      
+      // File inputs
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleDirectory(Array.from(e.target.files));
+        }
+      });
+      
+      zipInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleZipFile(e.target.files[0]);
+        }
+      });
+    }
+    
+    // Handle ZIP file
+    async function handleZipFile(file) {
+      showLoading();
+      
+      try {
+        const zip = await JSZip.loadAsync(file);
+        const files = {};
+        
+        // Extract all files
+        for (const [path, zipEntry] of Object.entries(zip.files)) {
+          if (!zipEntry.dir) {
+            const blob = await zipEntry.async('blob');
+            files[path] = new File([blob], zipEntry.name, { type: blob.type });
+          }
+        }
+        
+        await processFiles(Object.values(files));
+      } catch (error) {
+        console.error('ZIP error:', error);
+        alert('ZIP dosyası okunamadı: ' + error.message);
+        hideLoading();
+      }
+    }
+    
+    // Handle directory
+    async function handleDirectory(files) {
+      showLoading();
+      await processFiles(files);
+    }
+    
+    // Process files
+    async function processFiles(files) {
+      try {
+        // Find chat file
+        const chatFile = files.find(f => f.name === '_chat.txt');
+        if (!chatFile) {
+          throw new Error('_chat.txt dosyası bulunamadı');
+        }
+        
+        // Parse chat
+        const chatText = await chatFile.text();
+        const parsed = parseChatFile(chatText);
+        messages = parsed.messages;
+        
+        // Determine first sender (user)
+        if (messages.length > 0) {
+          firstSender = messages[0].sender;
+        }
+        
+        // Store media files
+        const mediaMap = new Map();
+        for (const file of files) {
+          if (file.name !== '_chat.txt') {
+            mediaMap.set(file.name, file);
+          }
+        }
+        
+        // Store in IndexedDB
+        await storeMediaFiles(mediaMap);
+        
+        // Show chat
+        showChat();
+        renderMessages();
+      } catch (error) {
+        console.error('Process error:', error);
+        alert('Hata: ' + error.message);
+        hideLoading();
+      }
+    }
+    
+    // Parse chat file
+    function parseChatFile(text) {
+      const lines = text.split('\n');
+      const messages = [];
+      let currentMessage = null;
+      
+      const dateRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}:\d{2})\]\s+(.+?):\s*(.+)$/;
+      const mediaRegex = /<([^>]+)\s+eklendi>/;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const dateMatch = line.match(dateRegex);
+        
+        if (dateMatch) {
+          // Save previous message
+          if (currentMessage) {
+            messages.push(currentMessage);
+          }
+          
+          // New message
+          const [, date, time, sender, content] = dateMatch;
+          const mediaMatch = content.match(mediaRegex);
+          
+          currentMessage = {
+            date: parseDate(date),
+            time: time,
+            sender: sender.trim(),
+            text: mediaMatch ? '' : content.trim(),
+            media: mediaMatch ? mediaMatch[1] : null,
+            timestamp: new Date(parseDate(date) + ' ' + time)
+          };
+        } else if (currentMessage) {
+          // Continuation of previous message
+          currentMessage.text += '\n' + line;
+        }
+      }
+      
+      // Add last message
+      if (currentMessage) {
+        messages.push(currentMessage);
+      }
+      
+      return { messages };
+    }
+    
+    // Parse date
+    function parseDate(dateStr) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const month = parts[0].padStart(2, '0');
+        const day = parts[1].padStart(2, '0');
+        const year = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+        return `${year}-${month}-${day}`;
+      }
+      return dateStr;
+    }
+    
+    // Store media files in IndexedDB
+    async function storeMediaFiles(filesMap) {
+      if (!db) {
+        await new Promise(resolve => {
+          const checkDb = setInterval(() => {
+            if (db) {
+              clearInterval(checkDb);
+              resolve();
+            }
+          }, 100);
+        });
+      }
+      
+      const transaction = db.transaction(['media'], 'readwrite');
+      const store = transaction.objectStore('media');
+      
+      for (const [name, file] of filesMap.entries()) {
+        const arrayBuffer = await file.arrayBuffer();
+        await store.put(arrayBuffer, name);
+        mediaFiles.set(name, { name, type: file.type, size: file.size });
+      }
+    }
+    
+    // Get media from IndexedDB
+    async function getMediaFile(fileName) {
+      if (!db) return null;
+      
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['media'], 'readonly');
+        const store = transaction.objectStore('media');
+        const request = store.get(fileName);
+        
+        request.onsuccess = () => {
+          if (request.result) {
+            resolve(new Blob([request.result]));
+          } else {
+            resolve(null);
+          }
+        };
+        
+        request.onerror = () => reject(request.error);
+      });
+    }
+    
+    // Show chat
+    function showChat() {
+      document.getElementById('upload-area').classList.add('hidden');
+      document.getElementById('chat-area').classList.add('visible');
+      
+      // Set chat title
+      const chatTitle = document.getElementById('chat-title');
+      if (messages.length > 0) {
+        const senders = [...new Set(messages.map(m => m.sender))];
+        chatTitle.textContent = senders.join(', ');
+      }
+      
+      // Set chat info
+      document.getElementById('chat-info').textContent = 
+        `${messages.length} mesaj`;
+    }
+    
+    // Render messages with virtual scrolling
+    let visibleStart = 0;
+    let visibleEnd = 100;
+    const itemsPerPage = 100;
+    let container = null;
+    
+    function renderMessages() {
+      container = document.getElementById('messages-container');
+      container.innerHTML = '';
+      
+      // Reset virtual scrolling
+      visibleStart = 0;
+      visibleEnd = Math.min(itemsPerPage, messages.length);
+      
+      // Render initial batch (from end for better UX)
+      if (messages.length > itemsPerPage) {
+        visibleStart = Math.max(0, messages.length - itemsPerPage);
+        visibleEnd = messages.length;
+        renderMessageBatch(visibleStart, visibleEnd);
+        // Scroll to bottom after render
+        setTimeout(() => {
+          container.scrollTop = container.scrollHeight;
+        }, 100);
+      } else {
+        renderMessageBatch(0, messages.length);
+        setTimeout(() => {
+          container.scrollTop = container.scrollHeight;
+        }, 100);
+      }
+      
+      // Setup scroll listener for virtual scrolling (only if many messages)
+      if (messages.length > itemsPerPage) {
+        container.addEventListener('scroll', debounce(() => {
+          const scrollTop = container.scrollTop;
+          const scrollHeight = container.scrollHeight;
+          const clientHeight = container.clientHeight;
+          
+          // Load more when near bottom
+          if (scrollTop + clientHeight > scrollHeight - 500 && visibleEnd < messages.length) {
+            const oldHeight = container.scrollHeight;
+            visibleEnd = Math.min(visibleEnd + itemsPerPage, messages.length);
+            renderMessageBatch(visibleStart, visibleEnd);
+            const newHeight = container.scrollHeight;
+            container.scrollTop = scrollTop + (newHeight - oldHeight);
+          }
+          
+          // Load previous when near top
+          if (scrollTop < 500 && visibleStart > 0) {
+            const oldHeight = container.scrollHeight;
+            const loadCount = Math.min(itemsPerPage, visibleStart);
+            visibleStart = Math.max(0, visibleStart - itemsPerPage);
+            const fragment = createMessageFragment(visibleStart, visibleStart + loadCount);
+            const firstChild = container.firstElementChild;
+            if (firstChild) {
+              container.insertBefore(fragment, firstChild);
+            }
+            const newHeight = container.scrollHeight;
+            container.scrollTop = scrollTop + (newHeight - oldHeight);
+          }
+        }, 100));
+      }
+    }
+    
+    function renderMessageBatch(start, end) {
+      const fragment = createMessageFragment(start, end);
+      container.appendChild(fragment);
+    }
+    
+    function createMessageFragment(start, end) {
+      const fragment = document.createDocumentFragment();
+      let lastDate = null;
+      
+      for (let i = start; i < end && i < messages.length; i++) {
+        const message = messages[i];
+        
+        // Date separator
+        const messageDate = message.date;
+        if (messageDate !== lastDate) {
+          const separator = document.createElement('div');
+          separator.className = 'date-separator';
+          const dateText = document.createElement('span');
+          dateText.className = 'date-text';
+          dateText.textContent = formatDate(messageDate);
+          separator.appendChild(dateText);
+          fragment.appendChild(separator);
+          lastDate = messageDate;
+        }
+        
+        // Message group
+        const group = document.createElement('div');
+        group.className = 'message-group';
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        
+        // Determine if sent or received
+        const isSent = firstSender && message.sender === firstSender;
+        bubble.classList.add(isSent ? 'sent' : 'received');
+        
+        // Sender name (if group chat and received)
+        const senders = [...new Set(messages.map(m => m.sender))];
+        if (senders.length > 2 && !isSent) {
+          const senderEl = document.createElement('div');
+          senderEl.className = 'message-sender';
+          senderEl.textContent = message.sender;
+          bubble.appendChild(senderEl);
+        }
+        
+        // Message text
+        if (message.text) {
+          const textEl = document.createElement('div');
+          textEl.className = 'message-text';
+          // Basic link detection
+          const text = message.text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #53bdeb;">$1</a>');
+          textEl.innerHTML = text;
+          bubble.appendChild(textEl);
+        }
+        
+        // Media (async, will be added)
+        if (message.media) {
+          const mediaContainer = document.createElement('div');
+          bubble.appendChild(mediaContainer);
+          renderMedia(mediaContainer, message.media);
+        }
+        
+        // Time
+        const timeEl = document.createElement('div');
+        timeEl.className = 'message-time';
+        timeEl.textContent = message.time;
+        bubble.appendChild(timeEl);
+        
+        group.appendChild(bubble);
+        fragment.appendChild(group);
+      }
+      
+      return fragment;
+    }
+    
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+    
+    // Render media
+    async function renderMedia(container, fileName) {
+      const mediaInfo = mediaFiles.get(fileName);
+      if (!mediaInfo) {
+        container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Medya bulunamadı: ' + fileName + '</div>';
+        return;
+      }
+      
+      const preview = document.createElement('div');
+      preview.className = 'media-preview';
+      
+      const ext = fileName.split('.').pop().toLowerCase();
+      
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+        // Image
+        try {
+          const blob = await getMediaFile(fileName);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = fileName;
+            img.loading = 'lazy';
+            preview.appendChild(img);
+            preview.onclick = () => showMediaModal(fileName, 'image', url);
+          } else {
+            container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Resim yüklenemedi</div>';
+            return;
+          }
+        } catch (error) {
+          container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Resim hatası</div>';
+          return;
+        }
+      } else if (ext === 'opus' || ext === 'mp3' || ext === 'wav' || ext === 'm4a') {
+        // Audio
+        preview.className += ' audio';
+        preview.innerHTML = `
+          <div class="media-icon">🎵</div>
+          <div class="media-info">
+            <div class="media-name">Ses Mesajı</div>
+            <div class="media-size">${formatFileSize(mediaInfo.size)}</div>
+          </div>
+        `;
+        preview.onclick = () => showMediaModal(fileName, 'audio');
+      } else if (ext === 'pdf') {
+        // PDF
+        preview.className += ' file';
+        const shortName = fileName.length > 30 ? fileName.substring(0, 27) + '...' : fileName;
+        preview.innerHTML = `
+          <div class="media-icon">📄</div>
+          <div class="media-info">
+            <div class="media-name">${shortName}</div>
+            <div class="media-size">${formatFileSize(mediaInfo.size)}</div>
+          </div>
+        `;
+        preview.onclick = () => showMediaModal(fileName, 'pdf');
+      } else if (ext === 'vcf') {
+        // VCF
+        preview.className += ' file';
+        preview.innerHTML = `
+          <div class="media-icon">👤</div>
+          <div class="media-info">
+            <div class="media-name">İletişim Kartı</div>
+            <div class="media-size">${fileName}</div>
+          </div>
+        `;
+        preview.onclick = () => showMediaModal(fileName, 'vcf');
+      } else if (['xlsx', 'xls', 'doc', 'docx'].includes(ext)) {
+        // Office files
+        preview.className += ' file';
+        const shortName = fileName.length > 30 ? fileName.substring(0, 27) + '...' : fileName;
+        preview.innerHTML = `
+          <div class="media-icon">📊</div>
+          <div class="media-info">
+            <div class="media-name">${shortName}</div>
+            <div class="media-size">${formatFileSize(mediaInfo.size)}</div>
+          </div>
+        `;
+        preview.onclick = () => showMediaModal(fileName, 'file');
+      } else {
+        // Other files
+        preview.className += ' file';
+        const shortName = fileName.length > 30 ? fileName.substring(0, 27) + '...' : fileName;
+        preview.innerHTML = `
+          <div class="media-icon">📎</div>
+          <div class="media-info">
+            <div class="media-name">${shortName}</div>
+            <div class="media-size">${formatFileSize(mediaInfo.size)}</div>
+          </div>
+        `;
+        preview.onclick = () => showMediaModal(fileName, 'file');
+      }
+      
+      container.appendChild(preview);
+    }
+    
+    // Show media modal
+    async function showMediaModal(fileName, type, imageUrl = null) {
+      const modal = document.getElementById('media-modal');
+      const content = document.getElementById('modal-content');
+      content.innerHTML = '';
+      
+      if (type === 'image' && imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        content.appendChild(img);
+      } else if (type === 'audio') {
+        const blob = await getMediaFile(fileName);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const audio = document.createElement('audio');
+          audio.controls = true;
+          audio.src = url;
+          audio.style.width = '100%';
+          audio.style.minWidth = '300px';
+          audio.style.maxWidth = '600px';
+          
+          // Fallback message for unsupported formats
+          const info = document.createElement('div');
+          info.style.color = '#8696a0';
+          info.style.fontSize = '12px';
+          info.style.marginTop = '10px';
+          info.style.textAlign = 'center';
+          info.textContent = 'Tarayıcınız bu ses formatını desteklemiyorsa, dosyayı indirip başka bir uygulamada açabilirsiniz.';
+          
+          const downloadLink = document.createElement('a');
+          downloadLink.href = url;
+          downloadLink.download = fileName;
+          downloadLink.textContent = 'Ses Dosyasını İndir';
+          downloadLink.style.display = 'block';
+          downloadLink.style.color = '#53bdeb';
+          downloadLink.style.padding = '10px';
+          downloadLink.style.marginTop = '10px';
+          downloadLink.style.textAlign = 'center';
+          downloadLink.style.textDecoration = 'underline';
+          
+          content.appendChild(audio);
+          content.appendChild(info);
+          content.appendChild(downloadLink);
+        }
+      } else if (type === 'pdf') {
+        const blob = await getMediaFile(fileName);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          // Try iframe first (works in most browsers)
+          const iframe = document.createElement('iframe');
+          iframe.src = url + '#toolbar=0';
+          iframe.style.width = '90vw';
+          iframe.style.height = '90vh';
+          iframe.style.border = 'none';
+          content.appendChild(iframe);
+          
+          // Fallback: download link
+          const downloadLink = document.createElement('a');
+          downloadLink.href = url;
+          downloadLink.download = fileName;
+          downloadLink.textContent = 'PDF\'yi İndir';
+          downloadLink.style.display = 'block';
+          downloadLink.style.color = 'white';
+          downloadLink.style.padding = '10px';
+          downloadLink.style.marginTop = '10px';
+          downloadLink.style.textAlign = 'center';
+          downloadLink.style.background = 'rgba(255,255,255,0.1)';
+          downloadLink.style.borderRadius = '8px';
+          content.appendChild(downloadLink);
+        }
+      } else if (type === 'vcf') {
+        const blob = await getMediaFile(fileName);
+        if (blob) {
+          const text = await blob.text();
+          const pre = document.createElement('pre');
+          pre.style.color = 'white';
+          pre.style.padding = '20px';
+          pre.textContent = text;
+          content.appendChild(pre);
+        }
+      } else {
+        // Download link
+        const blob = await getMediaFile(fileName);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.textContent = 'İndir: ' + fileName;
+          a.style.color = 'white';
+          a.style.padding = '20px';
+          a.style.display = 'block';
+          content.appendChild(a);
+          a.click();
+        }
+      }
+      
+      modal.classList.add('active');
+    }
+    
+    // Close media modal
+    function closeMediaModal() {
+      const modal = document.getElementById('media-modal');
+      modal.classList.remove('active');
+      const content = document.getElementById('modal-content');
+      content.innerHTML = '';
+    }
+    
+    // Format date
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (dateStr === formatDateStr(today)) {
+        return 'Bugün';
+      } else if (dateStr === formatDateStr(yesterday)) {
+        return 'Dün';
+      } else {
+        return date.toLocaleDateString('tr-TR', { 
+          day: 'numeric', 
+          month: 'long', 
+          year: 'numeric' 
+        });
+      }
+    }
+    
+    function formatDateStr(date) {
+      return date.toISOString().split('T')[0];
+    }
+    
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+    
+    // Show loading
+    function showLoading() {
+      document.getElementById('upload-area').classList.add('hidden');
+      document.getElementById('chat-area').classList.add('visible');
+      document.getElementById('messages-container').innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          <span>Yükleniyor...</span>
+        </div>
+      `;
+    }
+    
+    // Hide loading
+    function hideLoading() {
+      // Will be replaced by renderMessages
+    }
+    
+    // Reset app
+    function resetApp() {
+      messages = [];
+      mediaFiles.clear();
+      firstSender = null;
+      visibleStart = 0;
+      visibleEnd = 100;
+      document.getElementById('upload-area').classList.remove('hidden');
+      document.getElementById('chat-area').classList.remove('visible');
+      
+      // Clear IndexedDB
+      if (db) {
+        const transaction = db.transaction(['media'], 'readwrite');
+        const store = transaction.objectStore('media');
+        store.clear();
+      }
+    }
+    
+    // Close modal on escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeMediaModal();
+      }
+    });
+    
+    // Close modal on background click
+    document.getElementById('media-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'media-modal') {
+        closeMediaModal();
+      }
+    });
+  </script>
+</body>
+</html>
+
