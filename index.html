@@ -607,7 +607,6 @@
       <div class="chat-header">
         <div class="chat-title" id="chat-title">Sohbet</div>
         <div class="chat-info" id="chat-info"></div>
-        <button class="date-picker-btn" onclick="openDatePicker()" title="Tarihe Git">📅</button>
         <button onclick="resetApp()">Yeni Yükle</button>
       </div>
       <div class="messages-container" id="messages-container">
@@ -623,31 +622,6 @@
   <div class="modal" id="media-modal">
     <button class="modal-close" onclick="closeMediaModal()">×</button>
     <div class="modal-content" id="modal-content"></div>
-  </div>
-  
-  <!-- Date Picker Modal -->
-  <div class="date-picker-modal" id="date-picker-modal">
-    <div class="date-picker-content">
-      <div class="date-picker-header">
-        <div class="date-picker-title">Tarihe Git</div>
-        <button class="date-picker-close" onclick="closeDatePicker()">×</button>
-      </div>
-      <div class="quick-dates">
-        <button class="quick-date-btn" onclick="goToQuickDate('today')">Bugün</button>
-        <button class="quick-date-btn" onclick="goToQuickDate('yesterday')">Dün</button>
-        <button class="quick-date-btn" onclick="goToQuickDate('week')">1 Hafta</button>
-        <button class="quick-date-btn" onclick="goToQuickDate('month')">1 Ay</button>
-        <button class="quick-date-btn" onclick="goToQuickDate('3months')">3 Ay</button>
-        <button class="quick-date-btn" onclick="goToQuickDate('year')">1 Yıl</button>
-      </div>
-      <div class="date-input-group" style="margin-top: 16px;">
-        <label class="date-input-label">Veya Tarih Listesinden Seçin</label>
-        <div class="date-list" id="date-list"></div>
-      </div>
-      <div class="date-picker-actions">
-        <button class="btn-cancel" onclick="closeDatePicker()">Kapat</button>
-      </div>
-    </div>
   </div>
   
   <script>
@@ -1036,140 +1010,44 @@
       visibleStart = 0;
       visibleEnd = Math.min(itemsPerPage, messages.length);
       
-      // If messages are less than 500, render all at once for better UX
-      if (messages.length <= 500) {
-        // Render all messages
-        visibleStart = 0;
-        visibleEnd = messages.length;
-        renderMessageBatch(0, messages.length);
-        // Scroll to bottom after render
-        setTimeout(() => {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: 'auto'
-          });
-          buildDateSeparatorMap();
-        }, 100);
-      } else {
-        // For large chats, use virtual scrolling but load more initially
-        // Load last 200 messages initially
-        const initialLoad = Math.min(200, messages.length);
-        visibleStart = Math.max(0, messages.length - initialLoad);
-        visibleEnd = messages.length;
-        renderMessageBatch(visibleStart, visibleEnd);
-        // Scroll to bottom after render
-        setTimeout(() => {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: 'auto'
-          });
-          buildDateSeparatorMap();
-        }, 100);
-      }
+      // Render ALL messages - no virtual scrolling, no date filtering
+      visibleStart = 0;
+      visibleEnd = messages.length;
+      renderMessageBatch(0, messages.length);
       
-      // Setup scroll listener for virtual scrolling and fast scroll detection
-      let lastScrollTop = 0;
-      let lastScrollTime = Date.now();
-      let scrollVelocity = 0;
-      let isFastScrolling = false;
-      let dateSeparators = [];
-      
-      // Build date separator map for fast navigation
-      function buildDateSeparatorMap() {
-        dateSeparators = [];
-        const separators = container.querySelectorAll('.date-separator');
-        separators.forEach((sep, index) => {
-          const rect = sep.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
-          dateSeparators.push({
-            element: sep,
-            offsetTop: sep.offsetTop,
-            index: index
-          });
+      // Scroll to bottom after render
+      setTimeout(() => {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'auto'
         });
-      }
+      }, 100);
       
-      // Find nearest date separator
-      function findNearestDateSeparator(scrollTop, direction) {
-        if (dateSeparators.length === 0) return null;
+      // Simple scroll listener for virtual scrolling only (if needed for very large chats)
+      if (messages.length > 1000) {
+        let scrollTimeout = null;
         
-        let nearest = null;
-        let minDistance = Infinity;
-        
-        for (const sep of dateSeparators) {
-          const distance = Math.abs(sep.offsetTop - scrollTop);
-          if (direction === 'up' && sep.offsetTop < scrollTop && distance < minDistance) {
-            minDistance = distance;
-            nearest = sep;
-          } else if (direction === 'down' && sep.offsetTop > scrollTop && distance < minDistance) {
-            minDistance = distance;
-            nearest = sep;
-          }
-        }
-        
-        return nearest;
-      }
-      
-      // Only use virtual scrolling for large chats (>500 messages)
-      if (messages.length > 500) {
         container.addEventListener('scroll', () => {
           const scrollTop = container.scrollTop;
           const scrollHeight = container.scrollHeight;
           const clientHeight = container.clientHeight;
-          const currentTime = Date.now();
-          const timeDelta = currentTime - lastScrollTime;
           
-          // Calculate scroll velocity
-          if (timeDelta > 0) {
-            const scrollDelta = Math.abs(scrollTop - lastScrollTop);
-            scrollVelocity = scrollDelta / timeDelta; // pixels per millisecond
-            
-            // Fast scroll threshold: > 2 pixels per millisecond
-            isFastScrolling = scrollVelocity > 2;
-          }
-          
-          lastScrollTop = scrollTop;
-          lastScrollTime = currentTime;
-          
-          // Fast scroll: jump to next/previous month (throttled)
-          if (isFastScrolling && dateSeparators.length > 0) {
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(() => {
-              const direction = scrollTop > lastScrollTop ? 'down' : 'up';
-              const nearest = findNearestDateSeparator(scrollTop, direction);
-              
-              if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 150) {
-                container.scrollTo({
-                  top: nearest.offsetTop - 20,
-                  behavior: 'smooth'
-                });
-                
-                setTimeout(() => {
-                  isFastScrolling = false;
-                }, 500);
-              }
-            }, 200);
-          }
-          
-          // Virtual scrolling logic (simplified)
+          // Virtual scrolling logic (only for very large chats)
           clearTimeout(scrollTimeout);
           scrollTimeout = setTimeout(() => {
-            // Load more when near bottom (more aggressive loading)
+            // Load more when near bottom
             if (scrollTop + clientHeight > scrollHeight - 300 && visibleEnd < messages.length) {
               const oldHeight = container.scrollHeight;
-              // Load more messages at once
               const loadAmount = Math.min(itemsPerPage * 2, messages.length - visibleEnd);
               visibleEnd = Math.min(visibleEnd + loadAmount, messages.length);
               renderMessageBatch(visibleStart, visibleEnd);
               const newHeight = container.scrollHeight;
               container.scrollTop = scrollTop + (newHeight - oldHeight);
-              buildDateSeparatorMap();
             }
             
-            // Load previous when near top (more aggressive loading)
+            // Load previous when near top
             if (scrollTop < 300 && visibleStart > 0) {
               const oldHeight = container.scrollHeight;
-              // Load more messages at once
               const loadAmount = Math.min(itemsPerPage * 2, visibleStart);
               visibleStart = Math.max(0, visibleStart - loadAmount);
               const fragment = createMessageFragment(visibleStart, visibleStart + loadAmount);
@@ -1179,56 +1057,9 @@
               }
               const newHeight = container.scrollHeight;
               container.scrollTop = scrollTop + (newHeight - oldHeight);
-              buildDateSeparatorMap();
             }
           }, 100);
-        });
-        
-        // Initial build of date separator map
-        setTimeout(() => {
-          buildDateSeparatorMap();
-        }, 500);
-      } else {
-        // For smaller chats, just enable fast scroll (all messages already rendered)
-        let scrollTimeout = null;
-        
-        container.addEventListener('scroll', () => {
-          const scrollTop = container.scrollTop;
-          const currentTime = Date.now();
-          const timeDelta = currentTime - lastScrollTime;
-          
-          if (timeDelta > 0 && timeDelta < 200) {
-            const scrollDelta = Math.abs(scrollTop - lastScrollTop);
-            scrollVelocity = scrollDelta / timeDelta;
-            isFastScrolling = scrollVelocity > 1.5;
-          }
-          
-          lastScrollTop = scrollTop;
-          lastScrollTime = currentTime;
-          
-          if (isFastScrolling && dateSeparators.length > 0) {
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(() => {
-              const direction = scrollTop > lastScrollTop ? 'down' : 'up';
-              const nearest = findNearestDateSeparator(scrollTop, direction);
-              
-              if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 150) {
-                container.scrollTo({
-                  top: nearest.offsetTop - 20,
-                  behavior: 'smooth'
-                });
-                
-                setTimeout(() => {
-                  isFastScrolling = false;
-                }, 500);
-              }
-            }, 200);
-          }
         }, { passive: true });
-        
-        setTimeout(() => {
-          buildDateSeparatorMap();
-        }, 500);
       }
     }
     
@@ -1630,12 +1461,7 @@
     // Close modal on escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        const datePicker = document.getElementById('date-picker-modal');
-        if (datePicker.classList.contains('active')) {
-          closeDatePicker();
-        } else {
-          closeMediaModal();
-        }
+        closeMediaModal();
       }
     });
     
@@ -1646,232 +1472,6 @@
       }
     });
     
-    // Date picker functions
-    function openDatePicker() {
-      document.getElementById('date-picker-modal').classList.add('active');
-      buildDateList();
-    }
-    
-    function buildDateList() {
-      if (messages.length === 0) return;
-      
-      const dateList = document.getElementById('date-list');
-      dateList.innerHTML = '';
-      
-      // Group messages by date
-      const datesMap = new Map();
-      messages.forEach((msg, index) => {
-        const dateKey = msg.date;
-        if (!datesMap.has(dateKey)) {
-          datesMap.set(dateKey, []);
-        }
-        datesMap.get(dateKey).push(index);
-      });
-      
-      // Sort dates (newest first)
-      const sortedDates = Array.from(datesMap.entries()).sort((a, b) => {
-        return new Date(b[0]) - new Date(a[0]);
-      });
-      
-      // Create list items
-      sortedDates.forEach(([dateKey, indices]) => {
-        const item = document.createElement('div');
-        item.className = 'date-list-item';
-        item.onclick = () => {
-          goToDateByKey(dateKey);
-        };
-        
-        const dateObj = new Date(dateKey);
-        const dateText = formatDate(dateKey);
-        const count = indices.length;
-        
-        item.innerHTML = `
-          <div class="date-list-date">${dateText}</div>
-          <div class="date-list-count">${count} mesaj</div>
-        `;
-        
-        dateList.appendChild(item);
-      });
-    }
-    
-    function goToDateByKey(dateKey) {
-      if (!container || messages.length === 0) return;
-      
-      // Find first message with this date
-      let targetIndex = -1;
-      for (let i = 0; i < messages.length; i++) {
-        if (messages[i].date === dateKey) {
-          targetIndex = i;
-          break;
-        }
-      }
-      
-      if (targetIndex >= 0) {
-        // Render messages if needed
-        if (targetIndex < visibleStart || targetIndex >= visibleEnd) {
-          const start = Math.max(0, targetIndex - 20);
-          const end = Math.min(messages.length, targetIndex + 20);
-          visibleStart = start;
-          visibleEnd = end;
-          container.innerHTML = '';
-          renderMessageBatch(start, end);
-          
-          setTimeout(() => {
-            scrollToDate(dateKey);
-          }, 100);
-        } else {
-          scrollToDate(dateKey);
-        }
-      }
-      
-      closeDatePicker();
-    }
-    
-    function scrollToDate(dateKey) {
-      const separators = container.querySelectorAll('.date-separator');
-      for (const sep of separators) {
-        const dateText = sep.querySelector('.date-text').textContent;
-        if (dateText === formatDate(dateKey) || dateText.includes(formatDate(dateKey))) {
-          sep.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
-          break;
-        }
-      }
-    }
-    
-    function closeDatePicker() {
-      document.getElementById('date-picker-modal').classList.remove('active');
-    }
-    
-    function goToQuickDate(type) {
-      const today = new Date();
-      let targetDate = new Date();
-      
-      switch(type) {
-        case 'today':
-          targetDate = new Date(today);
-          break;
-        case 'yesterday':
-          targetDate.setDate(today.getDate() - 1);
-          break;
-        case 'week':
-          targetDate.setDate(today.getDate() - 7);
-          break;
-        case 'month':
-          targetDate.setMonth(today.getMonth() - 1);
-          break;
-        case '3months':
-          targetDate.setMonth(today.getMonth() - 3);
-          break;
-        case 'year':
-          targetDate.setFullYear(today.getFullYear() - 1);
-          break;
-      }
-      
-      // Find nearest date
-      const dateKey = targetDate.toISOString().split('T')[0];
-      goToNearestDate(targetDate);
-      closeDatePicker();
-    }
-    
-    function goToNearestDate(targetDate) {
-      if (!container || messages.length === 0) return;
-      
-      // Find nearest message to target date
-      let nearestMessage = null;
-      let minDiff = Infinity;
-      let nearestIndex = -1;
-      
-      const targetTime = targetDate.getTime();
-      
-      for (let i = 0; i < messages.length; i++) {
-        const message = messages[i];
-        const messageDate = new Date(message.date);
-        const diff = Math.abs(messageDate.getTime() - targetTime);
-        
-        if (diff < minDiff) {
-          minDiff = diff;
-          nearestMessage = message;
-          nearestIndex = i;
-        }
-      }
-      
-      if (nearestMessage && nearestIndex >= 0) {
-        // Find date separator for this message
-        const messageDate = nearestMessage.date;
-        const separators = container.querySelectorAll('.date-separator');
-        
-        let targetSeparator = null;
-        for (const sep of separators) {
-          const dateText = sep.querySelector('.date-text').textContent;
-          // Try to match date
-          if (dateText.includes(formatDate(messageDate)) || 
-              dateText === formatDate(messageDate)) {
-            targetSeparator = sep;
-            break;
-          }
-        }
-        
-        if (targetSeparator) {
-          // Scroll to date separator
-          targetSeparator.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
-        } else {
-          // If separator not found, scroll to message position
-          // Render messages if needed
-          if (nearestIndex < visibleStart || nearestIndex >= visibleEnd) {
-            // Need to render this range
-            const start = Math.max(0, nearestIndex - 10);
-            const end = Math.min(messages.length, nearestIndex + 10);
-            visibleStart = start;
-            visibleEnd = end;
-            container.innerHTML = '';
-            renderMessageBatch(start, end);
-            
-            setTimeout(() => {
-              const separators = container.querySelectorAll('.date-separator');
-              for (const sep of separators) {
-                const dateText = sep.querySelector('.date-text').textContent;
-                if (dateText.includes(formatDate(messageDate))) {
-                  sep.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                  });
-                  break;
-                }
-              }
-            }, 100);
-          } else {
-            // Find and scroll to the message
-            const messageElements = container.querySelectorAll('.message-group');
-            if (messageElements[nearestIndex - visibleStart]) {
-              messageElements[nearestIndex - visibleStart].scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-              });
-            }
-          }
-        }
-      }
-    }
-    
-    // Close date picker on background click
-    document.getElementById('date-picker-modal').addEventListener('click', (e) => {
-      if (e.target.id === 'date-picker-modal') {
-        closeDatePicker();
-      }
-    });
-    
-    // Close date picker on escape
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeDatePicker();
-      }
-    });
   </script>
 </body>
 </html>
