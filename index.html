@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <meta name="description" content="WhatsApp sohbet görüntüleyici - ZIP veya klasör yükleyerek sohbetleri görüntüleyin">
   <meta name="theme-color" content="#075e54">
   <title>WhatsApp Chat Viewer</title>
@@ -112,6 +112,38 @@
       font-size: 14px;
       color: #8696a0;
       margin-top: 8px;
+    }
+    
+    .upload-buttons {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .btn-zip,
+    .btn-folder {
+      background: #00a884;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      flex: 1;
+      min-width: 120px;
+      max-width: 200px;
+    }
+    
+    .btn-folder {
+      background: #2a3942;
+      color: #e9edef;
+    }
+    
+    .btn-zip:active,
+    .btn-folder:active {
+      opacity: 0.8;
     }
     
     input[type="file"] {
@@ -389,15 +421,159 @@
       border: none;
     }
     
-    /* Responsive */
+    /* Responsive - Mobile */
     @media (max-width: 768px) {
+      body {
+        font-size: 14px;
+      }
+      
+      .header {
+        padding: 10px 12px;
+      }
+      
+      .header h1 {
+        font-size: 14px;
+      }
+      
+      .header button {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+      
+      .chat-header {
+        padding: 10px 12px;
+      }
+      
+      .chat-title {
+        font-size: 14px;
+      }
+      
+      .chat-info {
+        font-size: 11px;
+      }
+      
+      .chat-header button {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+      
+      .messages-container {
+        padding: 12px 8px;
+      }
+      
       .message-bubble {
-        max-width: 85%;
+        max-width: 90%;
+        padding: 5px 7px;
+      }
+      
+      .message-text {
+        font-size: 13px;
+      }
+      
+      .message-time {
+        font-size: 10px;
+      }
+      
+      .message-sender {
+        font-size: 12px;
+      }
+      
+      .date-separator {
+        margin: 12px 0;
+      }
+      
+      .date-text {
+        font-size: 11px;
+        padding: 3px 10px;
       }
       
       .upload-box {
         padding: 30px 20px;
+        max-width: 100%;
       }
+      
+      .upload-icon {
+        font-size: 40px;
+      }
+      
+      .upload-text {
+        font-size: 14px;
+      }
+      
+      .upload-hint {
+        font-size: 12px;
+      }
+      
+      .media-preview img {
+        max-width: 100%;
+      }
+      
+      .modal-content {
+        max-width: 95%;
+        max-height: 95%;
+      }
+      
+      .modal-content img {
+        max-width: 100%;
+        max-height: 95vh;
+      }
+      
+      .modal-close {
+        top: -35px;
+        width: 28px;
+        height: 28px;
+        font-size: 18px;
+      }
+      
+      .upload-buttons {
+        flex-direction: column;
+        gap: 10px;
+      }
+      
+      .btn-zip,
+      .btn-folder {
+        width: 100%;
+        max-width: 100%;
+      }
+    }
+    
+    /* Extra small devices */
+    @media (max-width: 480px) {
+      .message-bubble {
+        max-width: 95%;
+        padding: 4px 6px;
+      }
+      
+      .messages-container {
+        padding: 10px 6px;
+      }
+      
+      .header button,
+      .chat-header button {
+        padding: 5px 10px;
+        font-size: 11px;
+      }
+      
+      .upload-box {
+        padding: 20px 15px;
+      }
+      
+      .date-separator::before,
+      .date-separator::after {
+        width: 25%;
+      }
+    }
+    
+    /* Prevent horizontal scroll */
+    html, body {
+      overflow-x: hidden;
+      width: 100%;
+      position: relative;
+    }
+    
+    img, video {
+      max-width: 100%;
+      height: auto;
     }
   </style>
 </head>
@@ -415,9 +591,9 @@
         <input type="file" id="file-input" webkitdirectory multiple>
         <input type="file" id="zip-input" accept=".zip">
       </div>
-      <div style="margin-top: 20px; display: flex; gap: 12px;">
-        <button onclick="document.getElementById('zip-input').click()" style="background: #00a884; border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer;">ZIP Yükle</button>
-        <button onclick="document.getElementById('file-input').click()" style="background: #2a3942; border: none; color: #e9edef; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Klasör Seç</button>
+      <div class="upload-buttons">
+        <button onclick="document.getElementById('zip-input').click()" class="btn-zip">ZIP Yükle</button>
+        <button onclick="document.getElementById('file-input').click()" class="btn-folder">Klasör Seç</button>
       </div>
     </div>
     
