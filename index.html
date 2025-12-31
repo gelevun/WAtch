@@ -698,36 +698,22 @@
             
             // Then store in IndexedDB with separate transaction
             return new Promise((resolve, reject) => {
-              try {
-                const transaction = db.transaction(['media'], 'readwrite');
-                const store = transaction.objectStore('media');
-                
-                // Use add() first, if it fails (key exists), use put()
-                const addRequest = store.add(arrayBuffer, name);
-                
-                addRequest.onsuccess = () => {
-                  mediaFiles.set(name, { name, type: file.type, size: file.size });
-                  resolve();
-                };
-                
-                addRequest.onerror = () => {
-                  // If add fails (key exists), try put
-                  if (addRequest.error.name === 'ConstraintError') {
-                    const putRequest = store.put(arrayBuffer, name);
-                    putRequest.onsuccess = () => {
-                      mediaFiles.set(name, { name, type: file.type, size: file.size });
-                      resolve();
-                    };
-                    putRequest.onerror = () => {
-                      reject(putRequest.error);
-                    };
-                  } else {
-                    reject(addRequest.error);
-                  }
-                };
-              } catch (error) {
-                reject(error);
-              }
+              const transaction = db.transaction(['media'], 'readwrite');
+              const store = transaction.objectStore('media');
+              
+              // Store with explicit key (out-of-line key)
+              const request = store.put(arrayBuffer, name);
+              
+              request.onsuccess = () => {
+                mediaFiles.set(name, { name, type: file.type, size: file.size });
+                resolve();
+              };
+              
+              request.onerror = () => {
+                console.error(`Error storing ${name}:`, request.error);
+                // Continue even if one file fails
+                resolve(); // Don't reject, just continue
+              };
             });
           } catch (error) {
             console.error(`Error storing ${name}:`, error);
