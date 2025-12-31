@@ -2,7 +2,7 @@
   "name": "WhatsApp Chat Viewer",
   "short_name": "WA Viewer",
   "description": "WhatsApp export dosyalarını görüntüleyin",
-  "start_url": "/",
+  "start_url": "/WAtch/",
   "display": "standalone",
   "background_color": "#075e54",
   "theme_color": "#075e54",
