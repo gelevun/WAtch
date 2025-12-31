@@ -1017,7 +1017,10 @@
         renderMessageBatch(visibleStart, visibleEnd);
         // Scroll to bottom after render
         setTimeout(() => {
-          container.scrollTop = container.scrollHeight;
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'auto'
+          });
         }, 100);
       } else {
         renderMessageBatch(0, messages.length);
