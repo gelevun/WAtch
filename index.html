@@ -14,15 +14,24 @@
       --whatsapp-light-green: #25d366;
       --whatsapp-dark-green: #128c7e;
       --message-sent: #dcf8c6;
+      --message-sent-dark: #d9fdd3;
       --message-received: #ffffff;
+      --message-received-dark: #202c33;
       --text-primary: #111b21;
+      --text-primary-dark: #e9edef;
       --text-secondary: #667781;
+      --text-secondary-dark: #8696a0;
       --border-color: #e9edef;
+      --border-color-dark: #313d45;
       --bg-primary: #efeae2;
+      --bg-primary-dark: #0b141a;
       --bg-secondary: #f0f2f5;
+      --bg-secondary-dark: #111b21;
       --avatar-size: 40px;
       --bubble-radius: 7.5px;
       --shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+      --shadow-sent: 0 1px 1px rgba(0,0,0,0.1);
+      --shadow-received: 0 1px 0.5px rgba(0,0,0,0.13);
     }
 
     * {
@@ -174,8 +183,9 @@
     .message {
       display: flex;
       margin-bottom: 2px;
-      padding: 6px 8px 8px 8px;
+      padding: 2px 8px;
       animation: fadeIn 0.2s ease-in;
+      align-items: flex-end;
     }
 
     @keyframes fadeIn {
@@ -191,14 +201,16 @@
 
     .message.sent {
       justify-content: flex-end;
+      padding-left: 60px;
     }
 
     .message.received {
       justify-content: flex-start;
+      padding-right: 60px;
     }
 
     .message-content {
-      max-width: 75%;
+      max-width: 65%;
       min-width: 100px;
       display: flex;
       flex-direction: column;
@@ -217,12 +229,17 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       font-size: 13px;
+      padding-left: 4px;
+    }
+
+    .message.sent .message-header {
+      display: none;
     }
 
     .message.received .message-header {
-      padding-left: 4px;
+      display: flex;
     }
 
     .avatar {
@@ -236,6 +253,12 @@
       font-weight: 600;
       font-size: 16px;
       flex-shrink: 0;
+      margin-right: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .message.sent .avatar {
+      display: none;
     }
 
     .sender-name {
@@ -246,19 +269,22 @@
     .message-bubble {
       padding: 6px 7px 8px 9px;
       border-radius: var(--bubble-radius);
-      box-shadow: var(--shadow);
       word-wrap: break-word;
       position: relative;
+      display: inline-block;
     }
 
     .message.sent .message-bubble {
       background: var(--message-sent);
       border-bottom-right-radius: 2px;
+      box-shadow: var(--shadow-sent);
+      margin-left: auto;
     }
 
     .message.received .message-bubble {
       background: var(--message-received);
       border-bottom-left-radius: 2px;
+      box-shadow: var(--shadow-received);
     }
 
     .message-text {
@@ -271,13 +297,29 @@
     .message-time {
       font-size: 11px;
       color: var(--text-secondary);
-      margin-top: 2px;
+      margin-top: 4px;
       text-align: right;
       padding-right: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
     }
 
     .message.received .message-time {
       text-align: left;
+      justify-content: flex-start;
+    }
+
+    .message-time::before {
+      content: '';
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 15' width='16' height='15'%3E%3Cpath fill='%23667781' d='M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      opacity: 0.6;
     }
 
     .media-container {
@@ -1047,7 +1089,8 @@
         // İlk yüklemede tüm mesajları render et (daha sonra virtual scrolling devreye girer)
         for (let i = 0; i < this.messages.length; i++) {
           const message = this.messages[i];
-          const messageEl = this.createMessageElement(message);
+          const previousMessage = i > 0 ? this.messages[i - 1] : null;
+          const messageEl = this.createMessageElement(message, previousMessage);
           fragment.appendChild(messageEl);
         }
 
@@ -1074,7 +1117,7 @@
         }
       },
 
-      createMessageElement(message) {
+      createMessageElement(message, previousMessage = null) {
         const group = document.createElement('div');
         group.className = 'message-group';
 
@@ -1091,29 +1134,56 @@
         }
 
         // Mesaj elementi
+        const isSent = message.sender === 'Sen' || message.sender === 'You' || message.sender === 'Salih Güngör';
         const messageEl = document.createElement('div');
-        messageEl.className = `message ${message.sender === 'Sen' || message.sender === 'You' ? 'sent' : 'received'}`;
+        messageEl.className = `message ${isSent ? 'sent' : 'received'}`;
+
+        // Aynı kişiden ardışık mesajlar için margin ayarla
+        if (previousMessage) {
+          const prevIsSent = previousMessage.sender === 'Sen' || previousMessage.sender === 'You' || previousMessage.sender === 'Salih Güngör';
+          if (isSent === prevIsSent && previousMessage.sender === message.sender) {
+            messageEl.style.marginTop = '1px';
+          }
+        }
 
         const content = document.createElement('div');
         content.className = 'message-content';
 
-        // Header (sadece received mesajlar için)
+        // Header (sadece received mesajlar için ve önceki mesaj farklı kişiden ise)
         if (messageEl.classList.contains('received')) {
-          const header = document.createElement('div');
-          header.className = 'message-header';
+          const showHeader = !previousMessage || 
+                            previousMessage.sender !== message.sender ||
+                            (previousMessage.sender === message.sender && 
+                             new Date(message.date).getTime() - new Date(previousMessage.date).getTime() > 300000); // 5 dakika
           
-          const avatar = document.createElement('div');
-          avatar.className = 'avatar';
-          avatar.style.background = Utils.getAvatarColor(message.sender);
-          avatar.textContent = Utils.getInitials(message.sender);
-          
-          const name = document.createElement('span');
-          name.className = 'sender-name';
-          name.textContent = message.sender;
+          if (showHeader) {
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.style.background = Utils.getAvatarColor(message.sender);
+            avatar.textContent = Utils.getInitials(message.sender);
+            
+            const name = document.createElement('span');
+            name.className = 'sender-name';
+            name.textContent = message.sender;
 
-          header.appendChild(avatar);
-          header.appendChild(name);
-          content.appendChild(header);
+            header.appendChild(avatar);
+            header.appendChild(name);
+            content.appendChild(header);
+          } else {
+            // Avatar boşluğu ekle
+            const avatarSpacer = document.createElement('div');
+            avatarSpacer.className = 'avatar';
+            avatarSpacer.style.visibility = 'hidden';
+            avatarSpacer.style.width = '0';
+            avatarSpacer.style.margin = '0';
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            header.appendChild(avatarSpacer);
+            content.appendChild(header);
+          }
         }
 
         // Bubble
