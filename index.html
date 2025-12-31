@@ -473,7 +473,7 @@
     
     // IndexedDB initialization
     function initIndexedDB() {
-      const request = indexedDB.open('WhatsAppChatViewer', 1);
+      const request = indexedDB.open('WhatsAppChatViewer', 2);
       
       request.onerror = () => {
         console.error('IndexedDB error:', request.error);
@@ -485,9 +485,14 @@
       
       request.onupgradeneeded = (event) => {
         db = event.target.result;
-        if (!db.objectStoreNames.contains('media')) {
-          db.createObjectStore('media');
+        
+        // Delete old object store if exists (to fix keyPath issue)
+        if (db.objectStoreNames.contains('media')) {
+          db.deleteObjectStore('media');
         }
+        
+        // Create new object store without keyPath (using out-of-line keys)
+        db.createObjectStore('media');
       };
     }
     
@@ -693,19 +698,36 @@
             
             // Then store in IndexedDB with separate transaction
             return new Promise((resolve, reject) => {
-              const transaction = db.transaction(['media'], 'readwrite');
-              const store = transaction.objectStore('media');
-              
-              const request = store.put(arrayBuffer, name);
-              
-              request.onsuccess = () => {
-                mediaFiles.set(name, { name, type: file.type, size: file.size });
-                resolve();
-              };
-              
-              request.onerror = () => {
-                reject(request.error);
-              };
+              try {
+                const transaction = db.transaction(['media'], 'readwrite');
+                const store = transaction.objectStore('media');
+                
+                // Use add() first, if it fails (key exists), use put()
+                const addRequest = store.add(arrayBuffer, name);
+                
+                addRequest.onsuccess = () => {
+                  mediaFiles.set(name, { name, type: file.type, size: file.size });
+                  resolve();
+                };
+                
+                addRequest.onerror = () => {
+                  // If add fails (key exists), try put
+                  if (addRequest.error.name === 'ConstraintError') {
+                    const putRequest = store.put(arrayBuffer, name);
+                    putRequest.onsuccess = () => {
+                      mediaFiles.set(name, { name, type: file.type, size: file.size });
+                      resolve();
+                    };
+                    putRequest.onerror = () => {
+                      reject(putRequest.error);
+                    };
+                  } else {
+                    reject(addRequest.error);
+                  }
+                };
+              } catch (error) {
+                reject(error);
+              }
             });
           } catch (error) {
             console.error(`Error storing ${name}:`, error);
