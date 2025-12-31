@@ -526,9 +526,9 @@
       <div class="upload-area" id="uploadArea">
         <div class="upload-icon">📁</div>
         <div class="upload-text">WhatsApp Export Dosyasını Yükleyin</div>
-        <div class="upload-hint">.zip dosyası veya .txt + medya klasörü seçin</div>
-        <input type="file" id="fileInput" class="file-input" accept=".zip,.txt" />
-        <input type="file" id="txtFileInput" class="file-input" accept=".txt" style="display:none;" />
+        <div class="upload-hint">.zip dosyası veya sohbet dosyası + medya klasörü seçin</div>
+        <input type="file" id="fileInput" class="file-input" accept=".zip,.txt,.json,.csv,.xml,.text" />
+        <input type="file" id="txtFileInput" class="file-input" accept=".txt,.json,.csv,.xml,.text" style="display:none;" />
         <input type="file" id="mediaFileInput" class="file-input" webkitdirectory directory multiple style="display:none;" />
       </div>
     </div>
@@ -1386,8 +1386,8 @@
             const file = e.target.files[0];
             if (file.name.endsWith('.zip')) {
               await this.handleZipFile(file);
-            } else if (file.name.endsWith('.txt')) {
-              await this.handleTxtFile(file);
+            } else if (this.isTextFile(file.name)) {
+              await this.handleChatFile(file);
               // Eski yöntem: medya klasörü seçimi
               mediaInput.click();
             }
@@ -1407,7 +1407,18 @@
         });
       },
 
-      async handleTxtFile(file) {
+      isTextFile(fileName) {
+        const textExtensions = ['.txt', '.text', '.json', '.csv', '.xml', '.log'];
+        const lowerName = fileName.toLowerCase();
+        // Ayrıca dosya adında "chat" geçiyorsa da text dosyası olabilir
+        return textExtensions.some(ext => lowerName.endsWith(ext)) || 
+               lowerName.includes('chat') || 
+               lowerName.startsWith('_chat') ||
+               lowerName === 'chat.txt' ||
+               lowerName === '_chat.txt';
+      },
+
+      async handleChatFile(file) {
         this.txtFile = file;
         const text = await file.text();
         const result = WhatsAppParser.parse(text);
@@ -1469,7 +1480,7 @@
           const zip = await JSZip.loadAsync(zipFile);
           const files = zip.files;
           
-          let txtFile = null;
+          let chatFile = null;
           const mediaFiles = [];
 
           // Zip içindeki dosyaları işle
@@ -1482,15 +1493,23 @@
             // File objesi oluştur
             const file = new File([blob], fileName, { type: this.getMimeType(fileName) });
 
-            if (fileName.endsWith('.txt')) {
-              txtFile = file;
+            // Text dosyası mı kontrol et (chat dosyası olabilir)
+            if (this.isTextFile(fileName)) {
+              // Eğer henüz chat dosyası bulunamadıysa veya bu dosya daha uygun bir chat dosyasıysa
+              if (!chatFile || 
+                  fileName.toLowerCase().includes('chat') || 
+                  fileName.toLowerCase().startsWith('_chat') ||
+                  fileName.toLowerCase() === 'chat.txt' ||
+                  fileName.toLowerCase() === '_chat.txt') {
+                chatFile = file;
+              }
             } else {
               mediaFiles.push(file);
             }
           }
 
-          if (!txtFile) {
-            this.showError('Zip dosyasında .txt dosyası bulunamadı.');
+          if (!chatFile) {
+            this.showError('Zip dosyasında sohbet dosyası bulunamadı. (.txt, .text, _chat.txt gibi dosyalar aranıyor)');
             loading.style.display = 'none';
             return;
           }
@@ -1501,7 +1520,7 @@
           }
 
           // Mesajları parse et ve göster
-          const text = await txtFile.text();
+          const text = await chatFile.text();
           const result = WhatsAppParser.parse(text);
           const messages = result.messages;
           
@@ -1564,12 +1583,12 @@
           return;
         }
 
-        // Eski yöntem: txt + medya dosyaları
-        const txtFile = Array.from(files).find(f => f.name.endsWith('.txt'));
-        const mediaFiles = Array.from(files).filter(f => !f.name.endsWith('.txt'));
+        // Eski yöntem: chat dosyası + medya dosyaları
+        const chatFile = Array.from(files).find(f => this.isTextFile(f.name));
+        const mediaFiles = Array.from(files).filter(f => !this.isTextFile(f.name));
 
-        if (txtFile) {
-          await this.handleTxtFile(txtFile);
+        if (chatFile) {
+          await this.handleChatFile(chatFile);
         }
 
         if (mediaFiles.length > 0) {
