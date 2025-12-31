@@ -421,6 +421,10 @@
       border-radius: 8px;
       margin: 16px;
       font-size: 14px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 300px;
+      overflow-y: auto;
     }
 
     .stats {
@@ -563,29 +567,59 @@
         const lines = text.split('\n');
         let currentMessage = null;
 
-        // WhatsApp export formatları:
+        // WhatsApp export formatları (farklı diller ve formatlar):
         // [DD.MM.YY, SS:DD] İsim: Mesaj
         // DD/MM/YY, SS:DD - İsim: Mesaj
+        // [DD.MM.YYYY, SS:DD] İsim: Mesaj
+        // DD/MM/YYYY, SS:DD - İsim: Mesaj
+        // [DD-MM-YY, SS:DD] İsim: Mesaj
+        // DD-MM-YY, SS:DD - İsim: Mesaj
+        // [YYYY-MM-DD, SS:DD] İsim: Mesaj
         const patterns = [
+          // [DD.MM.YY, SS:DD] İsim: Mesaj
           /^\[(\d{1,2})\.(\d{1,2})\.(\d{2,4}),\s*(\d{1,2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
-          /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*-\s*(.+?):\s*(.+)$/
+          // DD/MM/YY, SS:DD - İsim: Mesaj
+          /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*-\s*(.+?):\s*(.+)$/,
+          // [DD-MM-YY, SS:DD] İsim: Mesaj
+          /^\[(\d{1,2})-(\d{1,2})-(\d{2,4}),\s*(\d{1,2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
+          // DD-MM-YY, SS:DD - İsim: Mesaj
+          /^(\d{1,2})-(\d{1,2})-(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*-\s*(.+?):\s*(.+)$/,
+          // [YYYY-MM-DD, SS:DD] İsim: Mesaj
+          /^\[(\d{4})-(\d{1,2})-(\d{1,2}),\s*(\d{1,2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
+          // YYYY-MM-DD, SS:DD - İsim: Mesaj
+          /^(\d{4})-(\d{1,2})-(\d{1,2}),\s*(\d{1,2}):(\d{2})\s*-\s*(.+?):\s*(.+)$/,
+          // [DD.MM.YYYY, SS:DD] İsim: Mesaj (4 haneli yıl)
+          /^\[(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
+          // DD/MM/YYYY, SS:DD - İsim: Mesaj (4 haneli yıl)
+          /^(\d{1,2})\/(\d{1,2})\/(\d{4}),\s*(\d{1,2}):(\d{2})\s*-\s*(.+?):\s*(.+)$/
         ];
 
-        for (let line of lines) {
-          line = line.trim();
+        let matchedCount = 0;
+        let sampleLines = [];
+
+        for (let i = 0; i < lines.length; i++) {
+          let line = lines[i].trim();
           if (!line) continue;
 
+          // İlk 5 satırı örnek olarak sakla (debug için)
+          if (i < 5 && line.length > 0) {
+            sampleLines.push(line);
+          }
+
           let matched = false;
-          for (let pattern of patterns) {
+          for (let patternIndex = 0; patternIndex < patterns.length; patternIndex++) {
+            const pattern = patterns[patternIndex];
             const match = line.match(pattern);
             if (match) {
               matched = true;
+              matchedCount++;
               const groups = match;
               
               let day, month, year, hour, minute, sender, text;
               
-              if (pattern === patterns[0]) {
-                // [DD.MM.YY, SS:DD] format
+              // Pattern tipine göre parse et
+              if (patternIndex === 0 || patternIndex === 6) {
+                // [DD.MM.YY/YYYY, SS:DD] format
                 day = parseInt(groups[1]);
                 month = parseInt(groups[2]) - 1;
                 year = parseInt(groups[3]);
@@ -594,12 +628,31 @@
                 minute = parseInt(groups[5]);
                 sender = groups[6].trim();
                 text = groups[7];
-              } else {
-                // DD/MM/YY, SS:DD - format
+              } else if (patternIndex === 1 || patternIndex === 7) {
+                // DD/MM/YY/YYYY, SS:DD - format
                 day = parseInt(groups[1]);
                 month = parseInt(groups[2]) - 1;
                 year = parseInt(groups[3]);
                 if (year < 100) year += 2000;
+                hour = parseInt(groups[4]);
+                minute = parseInt(groups[5]);
+                sender = groups[6].trim();
+                text = groups[7];
+              } else if (patternIndex === 2 || patternIndex === 3) {
+                // [DD-MM-YY, SS:DD] veya DD-MM-YY, SS:DD - format
+                day = parseInt(groups[1]);
+                month = parseInt(groups[2]) - 1;
+                year = parseInt(groups[3]);
+                if (year < 100) year += 2000;
+                hour = parseInt(groups[4]);
+                minute = parseInt(groups[5]);
+                sender = groups[6].trim();
+                text = groups[7];
+              } else if (patternIndex === 4 || patternIndex === 5) {
+                // [YYYY-MM-DD, SS:DD] veya YYYY-MM-DD, SS:DD - format
+                year = parseInt(groups[1]);
+                month = parseInt(groups[2]) - 1;
+                day = parseInt(groups[3]);
                 hour = parseInt(groups[4]);
                 minute = parseInt(groups[5]);
                 sender = groups[6].trim();
@@ -607,6 +660,11 @@
               }
 
               const date = new Date(year, month, day, hour, minute);
+              
+              // Geçersiz tarih kontrolü
+              if (isNaN(date.getTime())) {
+                continue;
+              }
               
               // Önceki mesajı kaydet
               if (currentMessage) {
@@ -622,14 +680,33 @@
                 isMedia: false
               };
 
-              // Medya kontrolü
-              const mediaMatch = text.match(/<attached:\s*(.+?)>|image omitted|video omitted|audio omitted|document omitted/);
-              if (mediaMatch) {
-                currentMessage.isMedia = true;
-                if (mediaMatch[1]) {
-                  currentMessage.media = mediaMatch[1].trim();
-                } else {
-                  currentMessage.media = 'unknown';
+              // Medya kontrolü (farklı diller için)
+              const mediaPatterns = [
+                /<attached:\s*(.+?)>/i,
+                /image omitted/i,
+                /video omitted/i,
+                /audio omitted/i,
+                /document omitted/i,
+                /resim atlandı/i,
+                /video atlandı/i,
+                /ses atlandı/i,
+                /belge atlandı/i,
+                /imagen omitida/i,
+                /video omitido/i,
+                /audio omitido/i,
+                /documento omitido/i
+              ];
+              
+              for (let mediaPattern of mediaPatterns) {
+                const mediaMatch = text.match(mediaPattern);
+                if (mediaMatch) {
+                  currentMessage.isMedia = true;
+                  if (mediaMatch[1]) {
+                    currentMessage.media = mediaMatch[1].trim();
+                  } else {
+                    currentMessage.media = 'unknown';
+                  }
+                  break;
                 }
               }
 
@@ -648,7 +725,13 @@
           messages.push(currentMessage);
         }
 
-        return messages;
+        // Debug bilgisi
+        if (messages.length === 0 && sampleLines.length > 0) {
+          console.log('Parser Debug - Örnek satırlar:', sampleLines);
+          console.log('Parser Debug - Eşleşen mesaj sayısı:', matchedCount);
+        }
+
+        return { messages, sampleLines, matchedCount };
       }
     };
 
@@ -1192,10 +1275,20 @@
       async handleTxtFile(file) {
         this.txtFile = file;
         const text = await file.text();
-        const messages = WhatsAppParser.parse(text);
+        const result = WhatsAppParser.parse(text);
+        const messages = result.messages;
         
         if (messages.length === 0) {
-          this.showError('Mesaj bulunamadı. Dosya formatını kontrol edin.');
+          let errorMsg = 'Mesaj bulunamadı. Dosya formatını kontrol edin.\n\n';
+          if (result.sampleLines && result.sampleLines.length > 0) {
+            errorMsg += 'Dosyanın ilk satırları:\n';
+            result.sampleLines.slice(0, 3).forEach((line, i) => {
+              errorMsg += `${i + 1}. ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}\n`;
+            });
+            errorMsg += '\nLütfen dosyanın WhatsApp export formatında olduğundan emin olun.';
+          }
+          this.showError(errorMsg);
+          console.error('Parser Debug:', result);
           return;
         }
 
@@ -1215,8 +1308,13 @@
 
         if (this.txtFile) {
           const text = await this.txtFile.text();
-          const messages = WhatsAppParser.parse(text);
-          await this.processFiles(messages);
+          const result = WhatsAppParser.parse(text);
+          const messages = result.messages;
+          if (messages.length > 0) {
+            await this.processFiles(messages);
+          } else {
+            this.showError('Mesaj bulunamadı. Dosya formatını kontrol edin.');
+          }
         }
       },
 
@@ -1269,11 +1367,20 @@
 
           // Mesajları parse et ve göster
           const text = await txtFile.text();
-          const messages = WhatsAppParser.parse(text);
+          const result = WhatsAppParser.parse(text);
+          const messages = result.messages;
           
           if (messages.length === 0) {
-            this.showError('Mesaj bulunamadı. Dosya formatını kontrol edin.');
+            let errorMsg = 'Mesaj bulunamadı. Dosya formatını kontrol edin.\n\n';
+            if (result.sampleLines && result.sampleLines.length > 0) {
+              errorMsg += 'Dosyanın ilk satırları:\n';
+              result.sampleLines.slice(0, 3).forEach((line, i) => {
+                errorMsg += `${i + 1}. ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}\n`;
+              });
+            }
+            this.showError(errorMsg);
             loading.style.display = 'none';
+            console.error('Parser Debug:', result);
             return;
           }
 
