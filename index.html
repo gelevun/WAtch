@@ -1117,7 +1117,7 @@
         }
       },
 
-      createMessageElement(message, previousMessage = null) {
+      async createMessageElement(message, previousMessage = null) {
         const group = document.createElement('div');
         group.className = 'message-group';
 
@@ -1245,10 +1245,28 @@
         }
 
         if (!mediaFile) {
-          const placeholder = document.createElement('div');
-          placeholder.className = 'media-placeholder';
-          placeholder.textContent = 'Medya dosyası bulunamadı: ' + message.media;
-          bubble.appendChild(placeholder);
+          // Medya dosyası bulunamadıysa bile dosya adını ve indirme linkini göster
+          const container = document.createElement('div');
+          container.className = 'media-container';
+          
+          const link = document.createElement('div');
+          link.className = 'document-link';
+          link.style.cursor = 'default';
+          
+          const icon = this.getFileIcon(message.media, '');
+          const ext = message.media.split('.').pop().toLowerCase();
+          const fileSize = 'Dosya bulunamadı';
+          
+          link.innerHTML = `
+            <div class="document-icon" style="font-size: 48px;">${icon}</div>
+            <div class="document-info">
+              <div class="document-name">${message.media}</div>
+              <div class="document-size" style="color: var(--text-secondary);">${fileSize}</div>
+            </div>
+          `;
+          
+          container.appendChild(link);
+          bubble.appendChild(container);
           return;
         }
 
