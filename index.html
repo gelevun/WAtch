@@ -526,8 +526,9 @@
       <div class="upload-area" id="uploadArea">
         <div class="upload-icon">📁</div>
         <div class="upload-text">WhatsApp Export Dosyasını Yükleyin</div>
-        <div class="upload-hint">.zip dosyası veya sohbet dosyası + medya klasörü seçin</div>
+        <div class="upload-hint">.zip dosyası, klasör veya sohbet dosyası + medya klasörü seçin</div>
         <input type="file" id="fileInput" class="file-input" accept=".zip,.txt,.json,.csv,.xml,.text" />
+        <input type="file" id="folderInput" class="file-input" webkitdirectory directory multiple style="display:none;" />
         <input type="file" id="txtFileInput" class="file-input" accept=".txt,.json,.csv,.xml,.text" style="display:none;" />
         <input type="file" id="mediaFileInput" class="file-input" webkitdirectory directory multiple style="display:none;" />
       </div>
