@@ -886,7 +886,13 @@
         if (message.media) {
           const mediaContainer = document.createElement('div');
           bubble.appendChild(mediaContainer);
-          renderMedia(mediaContainer, message.media);
+          // Add loading placeholder
+          mediaContainer.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Yükleniyor...</div>';
+          // Render media asynchronously
+          renderMedia(mediaContainer, message.media).catch(err => {
+            console.error('Error rendering media:', err);
+            mediaContainer.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Medya yüklenemedi</div>';
+          });
         }
         
         // Time
@@ -937,14 +943,21 @@
             img.src = url;
             img.alt = fileName;
             img.loading = 'lazy';
+            img.style.display = 'block';
+            img.style.width = '100%';
+            img.style.maxWidth = '300px';
+            img.style.height = 'auto';
             preview.appendChild(img);
             preview.onclick = () => showMediaModal(fileName, 'image', url);
+            container.innerHTML = ''; // Clear loading message
+            container.appendChild(preview);
           } else {
             container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Resim yüklenemedi</div>';
             return;
           }
         } catch (error) {
-          container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Resim hatası</div>';
+          console.error('Error loading image:', error);
+          container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Resim hatası: ' + error.message + '</div>';
           return;
         }
       } else if (ext === 'opus' || ext === 'mp3' || ext === 'wav' || ext === 'm4a') {
@@ -958,6 +971,8 @@
           </div>
         `;
         preview.onclick = () => showMediaModal(fileName, 'audio');
+        container.innerHTML = ''; // Clear loading message
+        container.appendChild(preview);
       } else if (ext === 'pdf') {
         // PDF
         preview.className += ' file';
@@ -970,6 +985,8 @@
           </div>
         `;
         preview.onclick = () => showMediaModal(fileName, 'pdf');
+        container.innerHTML = ''; // Clear loading message
+        container.appendChild(preview);
       } else if (ext === 'vcf') {
         // VCF
         preview.className += ' file';
@@ -981,6 +998,8 @@
           </div>
         `;
         preview.onclick = () => showMediaModal(fileName, 'vcf');
+        container.innerHTML = ''; // Clear loading message
+        container.appendChild(preview);
       } else if (['xlsx', 'xls', 'doc', 'docx'].includes(ext)) {
         // Office files
         preview.className += ' file';
@@ -1005,9 +1024,9 @@
           </div>
         `;
         preview.onclick = () => showMediaModal(fileName, 'file');
+        container.innerHTML = ''; // Clear loading message
+        container.appendChild(preview);
       }
-      
-      container.appendChild(preview);
     }
     
     // Show media modal
