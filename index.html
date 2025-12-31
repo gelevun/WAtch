@@ -1011,6 +1011,7 @@
       visibleEnd = Math.min(itemsPerPage, messages.length);
       
       // Render ALL messages - no virtual scrolling, no date filtering
+      // Always render all messages to ensure nothing is missing
       visibleStart = 0;
       visibleEnd = messages.length;
       renderMessageBatch(0, messages.length);
@@ -1022,45 +1023,6 @@
           behavior: 'auto'
         });
       }, 100);
-      
-      // Simple scroll listener for virtual scrolling only (if needed for very large chats)
-      if (messages.length > 1000) {
-        let scrollTimeout = null;
-        
-        container.addEventListener('scroll', () => {
-          const scrollTop = container.scrollTop;
-          const scrollHeight = container.scrollHeight;
-          const clientHeight = container.clientHeight;
-          
-          // Virtual scrolling logic (only for very large chats)
-          clearTimeout(scrollTimeout);
-          scrollTimeout = setTimeout(() => {
-            // Load more when near bottom
-            if (scrollTop + clientHeight > scrollHeight - 300 && visibleEnd < messages.length) {
-              const oldHeight = container.scrollHeight;
-              const loadAmount = Math.min(itemsPerPage * 2, messages.length - visibleEnd);
-              visibleEnd = Math.min(visibleEnd + loadAmount, messages.length);
-              renderMessageBatch(visibleStart, visibleEnd);
-              const newHeight = container.scrollHeight;
-              container.scrollTop = scrollTop + (newHeight - oldHeight);
-            }
-            
-            // Load previous when near top
-            if (scrollTop < 300 && visibleStart > 0) {
-              const oldHeight = container.scrollHeight;
-              const loadAmount = Math.min(itemsPerPage * 2, visibleStart);
-              visibleStart = Math.max(0, visibleStart - loadAmount);
-              const fragment = createMessageFragment(visibleStart, visibleStart + loadAmount);
-              const firstChild = container.firstElementChild;
-              if (firstChild) {
-                container.insertBefore(fragment, firstChild);
-              }
-              const newHeight = container.scrollHeight;
-              container.scrollTop = scrollTop + (newHeight - oldHeight);
-            }
-          }, 100);
-        }, { passive: true });
-      }
     }
     
     function renderMessageBatch(start, end) {
