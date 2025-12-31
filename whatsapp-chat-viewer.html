@@ -1632,25 +1632,100 @@
     // Date picker functions
     function openDatePicker() {
       document.getElementById('date-picker-modal').classList.add('active');
-      // Set max date to today
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('date-input').max = today;
+      buildDateList();
+    }
+    
+    function buildDateList() {
+      if (messages.length === 0) return;
+      
+      const dateList = document.getElementById('date-list');
+      dateList.innerHTML = '';
+      
+      // Group messages by date
+      const datesMap = new Map();
+      messages.forEach((msg, index) => {
+        const dateKey = msg.date;
+        if (!datesMap.has(dateKey)) {
+          datesMap.set(dateKey, []);
+        }
+        datesMap.get(dateKey).push(index);
+      });
+      
+      // Sort dates (newest first)
+      const sortedDates = Array.from(datesMap.entries()).sort((a, b) => {
+        return new Date(b[0]) - new Date(a[0]);
+      });
+      
+      // Create list items
+      sortedDates.forEach(([dateKey, indices]) => {
+        const item = document.createElement('div');
+        item.className = 'date-list-item';
+        item.onclick = () => {
+          goToDateByKey(dateKey);
+        };
+        
+        const dateObj = new Date(dateKey);
+        const dateText = formatDate(dateKey);
+        const count = indices.length;
+        
+        item.innerHTML = `
+          <div class="date-list-date">${dateText}</div>
+          <div class="date-list-count">${count} mesaj</div>
+        `;
+        
+        dateList.appendChild(item);
+      });
+    }
+    
+    function goToDateByKey(dateKey) {
+      if (!container || messages.length === 0) return;
+      
+      // Find first message with this date
+      let targetIndex = -1;
+      for (let i = 0; i < messages.length; i++) {
+        if (messages[i].date === dateKey) {
+          targetIndex = i;
+          break;
+        }
+      }
+      
+      if (targetIndex >= 0) {
+        // Render messages if needed
+        if (targetIndex < visibleStart || targetIndex >= visibleEnd) {
+          const start = Math.max(0, targetIndex - 20);
+          const end = Math.min(messages.length, targetIndex + 20);
+          visibleStart = start;
+          visibleEnd = end;
+          container.innerHTML = '';
+          renderMessageBatch(start, end);
+          
+          setTimeout(() => {
+            scrollToDate(dateKey);
+          }, 100);
+        } else {
+          scrollToDate(dateKey);
+        }
+      }
+      
+      closeDatePicker();
+    }
+    
+    function scrollToDate(dateKey) {
+      const separators = container.querySelectorAll('.date-separator');
+      for (const sep of separators) {
+        const dateText = sep.querySelector('.date-text').textContent;
+        if (dateText === formatDate(dateKey) || dateText.includes(formatDate(dateKey))) {
+          sep.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+          break;
+        }
+      }
     }
     
     function closeDatePicker() {
       document.getElementById('date-picker-modal').classList.remove('active');
-    }
-    
-    function goToDate() {
-      const dateInput = document.getElementById('date-input').value;
-      if (!dateInput) {
-        alert('Lütfen bir tarih seçin');
-        return;
-      }
-      
-      const selectedDate = new Date(dateInput);
-      goToNearestDate(selectedDate);
-      closeDatePicker();
     }
     
     function goToQuickDate(type) {
@@ -1678,8 +1753,8 @@
           break;
       }
       
-      // Set date input
-      document.getElementById('date-input').value = targetDate.toISOString().split('T')[0];
+      // Find nearest date
+      const dateKey = targetDate.toISOString().split('T')[0];
       goToNearestDate(targetDate);
       closeDatePicker();
     }
