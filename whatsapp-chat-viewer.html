@@ -1036,9 +1036,25 @@
       visibleStart = 0;
       visibleEnd = Math.min(itemsPerPage, messages.length);
       
-      // Render initial batch (from end for better UX)
-      if (messages.length > itemsPerPage) {
-        visibleStart = Math.max(0, messages.length - itemsPerPage);
+      // If messages are less than 500, render all at once for better UX
+      if (messages.length <= 500) {
+        // Render all messages
+        visibleStart = 0;
+        visibleEnd = messages.length;
+        renderMessageBatch(0, messages.length);
+        // Scroll to bottom after render
+        setTimeout(() => {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'auto'
+          });
+          buildDateSeparatorMap();
+        }, 100);
+      } else {
+        // For large chats, use virtual scrolling but load more initially
+        // Load last 200 messages initially
+        const initialLoad = Math.min(200, messages.length);
+        visibleStart = Math.max(0, messages.length - initialLoad);
         visibleEnd = messages.length;
         renderMessageBatch(visibleStart, visibleEnd);
         // Scroll to bottom after render
@@ -1047,14 +1063,7 @@
             top: container.scrollHeight,
             behavior: 'auto'
           });
-        }, 100);
-      } else {
-        renderMessageBatch(0, messages.length);
-        setTimeout(() => {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: 'smooth'
-          });
+          buildDateSeparatorMap();
         }, 100);
       }
       
@@ -1101,7 +1110,8 @@
         return nearest;
       }
       
-      if (messages.length > itemsPerPage) {
+      // Only use virtual scrolling for large chats (>500 messages)
+      if (messages.length > 500) {
         container.addEventListener('scroll', () => {
           const scrollTop = container.scrollTop;
           const scrollHeight = container.scrollHeight;
@@ -1144,22 +1154,25 @@
           // Virtual scrolling logic (simplified)
           clearTimeout(scrollTimeout);
           scrollTimeout = setTimeout(() => {
-            // Load more when near bottom
-            if (scrollTop + clientHeight > scrollHeight - 500 && visibleEnd < messages.length) {
+            // Load more when near bottom (more aggressive loading)
+            if (scrollTop + clientHeight > scrollHeight - 300 && visibleEnd < messages.length) {
               const oldHeight = container.scrollHeight;
-              visibleEnd = Math.min(visibleEnd + itemsPerPage, messages.length);
+              // Load more messages at once
+              const loadAmount = Math.min(itemsPerPage * 2, messages.length - visibleEnd);
+              visibleEnd = Math.min(visibleEnd + loadAmount, messages.length);
               renderMessageBatch(visibleStart, visibleEnd);
               const newHeight = container.scrollHeight;
               container.scrollTop = scrollTop + (newHeight - oldHeight);
               buildDateSeparatorMap();
             }
             
-            // Load previous when near top
-            if (scrollTop < 500 && visibleStart > 0) {
+            // Load previous when near top (more aggressive loading)
+            if (scrollTop < 300 && visibleStart > 0) {
               const oldHeight = container.scrollHeight;
-              const loadCount = Math.min(itemsPerPage, visibleStart);
-              visibleStart = Math.max(0, visibleStart - itemsPerPage);
-              const fragment = createMessageFragment(visibleStart, visibleStart + loadCount);
+              // Load more messages at once
+              const loadAmount = Math.min(itemsPerPage * 2, visibleStart);
+              visibleStart = Math.max(0, visibleStart - loadAmount);
+              const fragment = createMessageFragment(visibleStart, visibleStart + loadAmount);
               const firstChild = container.firstElementChild;
               if (firstChild) {
                 container.insertBefore(fragment, firstChild);
@@ -1176,55 +1189,41 @@
           buildDateSeparatorMap();
         }, 500);
       } else {
-        // Even with few messages, enable fast scroll
+        // For smaller chats, just enable fast scroll (all messages already rendered)
         let scrollTimeout = null;
-        let rafId = null;
         
         container.addEventListener('scroll', () => {
-          // Cancel previous animation frame
-          if (rafId) {
-            cancelAnimationFrame(rafId);
+          const scrollTop = container.scrollTop;
+          const currentTime = Date.now();
+          const timeDelta = currentTime - lastScrollTime;
+          
+          if (timeDelta > 0 && timeDelta < 200) {
+            const scrollDelta = Math.abs(scrollTop - lastScrollTop);
+            scrollVelocity = scrollDelta / timeDelta;
+            isFastScrolling = scrollVelocity > 1.5;
           }
           
-          // Use requestAnimationFrame for smooth updates
-          rafId = requestAnimationFrame(() => {
-            const scrollTop = container.scrollTop;
-            const currentTime = Date.now();
-            const timeDelta = currentTime - lastScrollTime;
-            
-            if (timeDelta > 0) {
-              const scrollDelta = Math.abs(scrollTop - lastScrollTop);
-              scrollVelocity = scrollDelta / timeDelta;
-              isFastScrolling = scrollVelocity > 2;
-            }
-            
-            lastScrollTop = scrollTop;
-            lastScrollTime = currentTime;
-            
-            if (isFastScrolling) {
-              clearTimeout(scrollTimeout);
-              scrollTimeout = setTimeout(() => {
-                if (dateSeparators.length === 0) {
-                  buildDateSeparatorMap();
-                }
+          lastScrollTop = scrollTop;
+          lastScrollTime = currentTime;
+          
+          if (isFastScrolling && dateSeparators.length > 0) {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+              const direction = scrollTop > lastScrollTop ? 'down' : 'up';
+              const nearest = findNearestDateSeparator(scrollTop, direction);
+              
+              if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 150) {
+                container.scrollTo({
+                  top: nearest.offsetTop - 20,
+                  behavior: 'smooth'
+                });
                 
-                const prevScrollTop = lastScrollTop;
-                const direction = scrollTop > prevScrollTop ? 'down' : 'up';
-                const nearest = findNearestDateSeparator(scrollTop, direction);
-                
-                if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 100) {
-                  container.scrollTo({
-                    top: nearest.offsetTop - 20,
-                    behavior: 'smooth'
-                  });
-                  
-                  setTimeout(() => {
-                    isFastScrolling = false;
-                  }, 400);
-                }
-              }, 150);
-            }
-          });
+                setTimeout(() => {
+                  isFastScrolling = false;
+                }, 500);
+              }
+            }, 200);
+          }
         }, { passive: true });
         
         setTimeout(() => {
