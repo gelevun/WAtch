@@ -706,17 +706,25 @@
                 isMedia: false
               };
 
-              // Medya kontrolü (farklı diller için)
+              // Medya kontrolü (farklı diller ve formatlar için)
               const mediaPatterns = [
+                // <DOSYA_ADI eklendi> formatı (Türkçe WhatsApp)
+                /<([^>]+?)\s+eklendi>/i,
+                // <attached: DOSYA_ADI> formatı
                 /<attached:\s*(.+?)>/i,
+                // <DOSYA_ADI attached> formatı
+                /<([^>]+?)\s+attached>/i,
+                // image/video/audio/document omitted
                 /image omitted/i,
                 /video omitted/i,
                 /audio omitted/i,
                 /document omitted/i,
+                // Türkçe
                 /resim atlandı/i,
                 /video atlandı/i,
                 /ses atlandı/i,
                 /belge atlandı/i,
+                // İspanyolca
                 /imagen omitida/i,
                 /video omitido/i,
                 /audio omitido/i,
@@ -727,8 +735,11 @@
                 const mediaMatch = text.match(mediaPattern);
                 if (mediaMatch) {
                   currentMessage.isMedia = true;
-                  if (mediaMatch[1]) {
-                    currentMessage.media = mediaMatch[1].trim();
+                  // İlk capture group'u al (dosya adı)
+                  const fileName = mediaMatch[1] || mediaMatch[0];
+                  if (fileName && fileName !== 'image' && fileName !== 'video' && fileName !== 'audio' && fileName !== 'document') {
+                    // Dosya adını temizle (eklendi, attached gibi kelimeleri kaldır)
+                    currentMessage.media = fileName.trim().replace(/\s+(eklendi|attached)$/i, '');
                   } else {
                     currentMessage.media = 'unknown';
                   }
@@ -1132,8 +1143,36 @@
       },
 
       async createMediaElement(bubble, message) {
-        const mediaName = message.media.toLowerCase();
-        const mediaFile = this.mediaMap.get(mediaName);
+        // Medya dosyasını bul (case-insensitive ve farklı formatlarda)
+        let mediaFile = null;
+        const mediaName = message.media.toLowerCase().trim();
+        
+        // Önce tam eşleşme dene
+        mediaFile = this.mediaMap.get(mediaName);
+        
+        // Eğer bulunamazsa, dosya adının sonundaki uzantıyı kontrol et
+        if (!mediaFile) {
+          // Tüm medya dosyalarını kontrol et
+          for (let [fileName, file] of this.mediaMap.entries()) {
+            const fileNameLower = fileName.toLowerCase();
+            // Tam eşleşme
+            if (fileNameLower === mediaName) {
+              mediaFile = file;
+              break;
+            }
+            // Dosya adı içinde geçiyorsa (kısmi eşleşme)
+            if (fileNameLower.includes(mediaName) || mediaName.includes(fileNameLower)) {
+              mediaFile = file;
+              break;
+            }
+            // Dosya adının başındaki numarayı kontrol et (örn: 00000053)
+            const mediaPrefix = mediaName.match(/^(\d+)/);
+            if (mediaPrefix && fileNameLower.startsWith(mediaPrefix[1])) {
+              mediaFile = file;
+              break;
+            }
+          }
+        }
 
         if (!mediaFile) {
           const placeholder = document.createElement('div');
