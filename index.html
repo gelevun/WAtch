@@ -1216,33 +1216,80 @@
       async createMediaElement(bubble, message) {
         // Medya dosyasını bul (case-insensitive ve farklı formatlarda)
         let mediaFile = null;
-        const mediaName = message.media.toLowerCase().trim();
+        let mediaName = message.media.toLowerCase().trim();
+        
+        // Dosya adını temizle (özel karakterleri kaldır)
+        mediaName = mediaName.replace(/[<>]/g, '').trim();
+        
+        console.log('Aranan medya:', mediaName);
+        console.log('Mevcut medya dosyaları:', Array.from(this.mediaMap.keys()).slice(0, 10));
         
         // Önce tam eşleşme dene
         mediaFile = this.mediaMap.get(mediaName);
         
-        // Eğer bulunamazsa, dosya adının sonundaki uzantıyı kontrol et
+        // Eğer bulunamazsa, farklı eşleştirme yöntemleri dene
         if (!mediaFile) {
           // Tüm medya dosyalarını kontrol et
           for (let [fileName, file] of this.mediaMap.entries()) {
             const fileNameLower = fileName.toLowerCase();
-            // Tam eşleşme
+            
+            // 1. Tam eşleşme (case-insensitive)
             if (fileNameLower === mediaName) {
               mediaFile = file;
+              console.log('Tam eşleşme bulundu:', fileName);
               break;
             }
-            // Dosya adı içinde geçiyorsa (kısmi eşleşme)
+            
+            // 2. Dosya adı içinde geçiyorsa (kısmi eşleşme)
             if (fileNameLower.includes(mediaName) || mediaName.includes(fileNameLower)) {
               mediaFile = file;
+              console.log('Kısmi eşleşme bulundu:', fileName);
               break;
             }
-            // Dosya adının başındaki numarayı kontrol et (örn: 00000053)
+            
+            // 3. Dosya adının başındaki numarayı kontrol et (örn: 00000053)
             const mediaPrefix = mediaName.match(/^(\d+)/);
-            if (mediaPrefix && fileNameLower.startsWith(mediaPrefix[1])) {
-              mediaFile = file;
-              break;
+            if (mediaPrefix) {
+              const prefix = mediaPrefix[1];
+              if (fileNameLower.startsWith(prefix) || fileNameLower.includes(prefix)) {
+                mediaFile = file;
+                console.log('Prefix eşleşmesi bulundu:', fileName);
+                break;
+              }
+            }
+            
+            // 4. Dosya adının sonundaki uzantıyı kontrol et
+            const mediaExt = mediaName.split('.').pop();
+            const fileExt = fileNameLower.split('.').pop();
+            if (mediaExt && fileExt && mediaExt === fileExt) {
+              // Uzantı eşleşiyorsa, dosya adının büyük kısmını kontrol et
+              const mediaBase = mediaName.replace('.' + mediaExt, '');
+              const fileBase = fileNameLower.replace('.' + fileExt, '');
+              if (fileBase.includes(mediaBase) || mediaBase.includes(fileBase)) {
+                mediaFile = file;
+                console.log('Uzantı + base eşleşmesi bulundu:', fileName);
+                break;
+              }
+            }
+            
+            // 5. Dosya adının ortasındaki tarih/numara kısmını kontrol et
+            const mediaNumbers = mediaName.match(/\d+/g);
+            if (mediaNumbers && mediaNumbers.length > 0) {
+              const hasCommonNumbers = mediaNumbers.some(num => fileNameLower.includes(num));
+              if (hasCommonNumbers && fileNameLower.length > 10) {
+                // Eğer ortak numaralar varsa ve dosya adı yeterince uzunsa
+                mediaFile = file;
+                console.log('Numara eşleşmesi bulundu:', fileName);
+                break;
+              }
             }
           }
+        }
+        
+        if (mediaFile) {
+          console.log('Medya dosyası bulundu:', mediaFile.name);
+        } else {
+          console.log('Medya dosyası bulunamadı:', mediaName);
         }
 
         if (!mediaFile) {
@@ -1656,7 +1703,10 @@
             return;
           }
 
+          // Medya dosyalarını kaydet ve renderMessages'a geçir
           this.mediaFiles = mediaFiles;
+          console.log('Medya dosyaları:', mediaFiles.length, 'adet');
+          console.log('Medya dosya isimleri:', mediaFiles.map(f => f.name).slice(0, 10));
           await this.processFiles(messages);
 
         } catch (error) {
