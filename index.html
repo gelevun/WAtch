@@ -625,6 +625,31 @@
     <div class="modal-content" id="modal-content"></div>
   </div>
   
+  <!-- Date Picker Modal -->
+  <div class="date-picker-modal" id="date-picker-modal">
+    <div class="date-picker-content">
+      <div class="date-picker-header">
+        <div class="date-picker-title">Tarihe Git</div>
+        <button class="date-picker-close" onclick="closeDatePicker()">×</button>
+      </div>
+      <div class="quick-dates">
+        <button class="quick-date-btn" onclick="goToQuickDate('today')">Bugün</button>
+        <button class="quick-date-btn" onclick="goToQuickDate('yesterday')">Dün</button>
+        <button class="quick-date-btn" onclick="goToQuickDate('week')">1 Hafta</button>
+        <button class="quick-date-btn" onclick="goToQuickDate('month')">1 Ay</button>
+        <button class="quick-date-btn" onclick="goToQuickDate('3months')">3 Ay</button>
+        <button class="quick-date-btn" onclick="goToQuickDate('year')">1 Yıl</button>
+      </div>
+      <div class="date-input-group" style="margin-top: 16px;">
+        <label class="date-input-label">Veya Tarih Listesinden Seçin</label>
+        <div class="date-list" id="date-list"></div>
+      </div>
+      <div class="date-picker-actions">
+        <button class="btn-cancel" onclick="closeDatePicker()">Kapat</button>
+      </div>
+    </div>
+  </div>
+  
   <script>
     // Global state
     let messages = [];
