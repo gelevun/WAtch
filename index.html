@@ -1540,7 +1540,19 @@
         uploadArea.addEventListener('drop', (e) => {
           e.preventDefault();
           uploadArea.classList.remove('dragover');
-          this.handleFiles(e.dataTransfer.files);
+          
+          // Klasör mü kontrol et
+          const items = Array.from(e.dataTransfer.items);
+          const hasDirectory = items.some(item => item.webkitGetAsEntry && item.webkitGetAsEntry().isDirectory);
+          
+          if (hasDirectory) {
+            // Klasör yükleme
+            folderInput.files = e.dataTransfer.files;
+            folderInput.dispatchEvent(new Event('change'));
+          } else {
+            // Dosya yükleme
+            this.handleFiles(e.dataTransfer.files);
+          }
         });
 
         uploadArea.addEventListener('click', () => {
@@ -1571,6 +1583,81 @@
         mediaInput.addEventListener('change', (e) => {
           this.handleMediaFiles(Array.from(e.target.files));
         });
+
+        // Klasör yükleme
+        folderInput.addEventListener('change', async (e) => {
+          if (e.target.files.length > 0) {
+            await this.handleFolderFiles(Array.from(e.target.files));
+          }
+        });
+      },
+
+      async handleFolderFiles(files) {
+        const loading = document.getElementById('loading');
+        loading.style.display = 'block';
+        loading.textContent = 'Klasör işleniyor...';
+
+        try {
+          let chatFile = null;
+          const mediaFiles = [];
+
+          // Dosyaları ayır
+          for (let file of files) {
+            if (this.isTextFile(file.name)) {
+              // Chat dosyası mı kontrol et
+              if (!chatFile || 
+                  file.name.toLowerCase().includes('chat') || 
+                  file.name.toLowerCase().startsWith('_chat') ||
+                  file.name.toLowerCase() === 'chat.txt' ||
+                  file.name.toLowerCase() === '_chat.txt') {
+                chatFile = file;
+              }
+            } else {
+              mediaFiles.push(file);
+            }
+          }
+
+          if (!chatFile) {
+            this.showError('Klasörde sohbet dosyası bulunamadı. (_chat.txt, chat.txt gibi dosyalar aranıyor)');
+            loading.style.display = 'none';
+            return;
+          }
+
+          // Medya dosyalarını kaydet
+          for (let file of mediaFiles) {
+            await Storage.saveMedia(file.name, file, file.type);
+          }
+
+          // Mesajları parse et ve göster
+          const text = await chatFile.text();
+          const result = WhatsAppParser.parse(text);
+          const messages = result.messages;
+          
+          if (messages.length === 0) {
+            let errorMsg = 'Mesaj bulunamadı. Dosya formatını kontrol edin.\n\n';
+            if (result.sampleLines && result.sampleLines.length > 0) {
+              errorMsg += 'Dosyanın ilk satırları:\n';
+              result.sampleLines.slice(0, 3).forEach((line, i) => {
+                errorMsg += `${i + 1}. ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}\n`;
+              });
+            }
+            this.showError(errorMsg);
+            loading.style.display = 'none';
+            console.error('Parser Debug:', result);
+            return;
+          }
+
+          // Medya dosyalarını kaydet ve renderMessages'a geçir
+          this.mediaFiles = mediaFiles;
+          console.log('Klasörden medya dosyaları:', mediaFiles.length, 'adet');
+          console.log('Medya dosya isimleri:', mediaFiles.map(f => f.name).slice(0, 10));
+          await this.processFiles(messages);
+
+        } catch (error) {
+          console.error('Klasör işleme hatası:', error);
+          this.showError('Klasör işlenirken hata oluştu: ' + error.message);
+          loading.style.display = 'none';
+        }
       },
 
       isTextFile(fileName) {
