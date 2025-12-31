@@ -7,6 +7,7 @@
   <meta name="description" content="WhatsApp sohbet görüntüleyici - Export edilen mesajları görüntüleyin">
   <title>WhatsApp Chat Viewer</title>
   <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
       --whatsapp-green: #075e54;
@@ -479,9 +480,10 @@
       <div class="upload-area" id="uploadArea">
         <div class="upload-icon">📁</div>
         <div class="upload-text">WhatsApp Export Dosyasını Yükleyin</div>
-        <div class="upload-hint">.txt dosyasını ve medya klasörünü seçin</div>
-        <input type="file" id="txtFileInput" class="file-input" accept=".txt" />
-        <input type="file" id="mediaFileInput" class="file-input" webkitdirectory directory multiple />
+        <div class="upload-hint">.zip dosyası veya .txt + medya klasörü seçin</div>
+        <input type="file" id="fileInput" class="file-input" accept=".zip,.txt" />
+        <input type="file" id="txtFileInput" class="file-input" accept=".txt" style="display:none;" />
+        <input type="file" id="mediaFileInput" class="file-input" webkitdirectory directory multiple style="display:none;" />
       </div>
     </div>
 
@@ -1137,6 +1139,7 @@
 
       setupEventListeners() {
         const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
         const txtInput = document.getElementById('txtFileInput');
         const mediaInput = document.getElementById('mediaFileInput');
 
@@ -1157,9 +1160,23 @@
         });
 
         uploadArea.addEventListener('click', () => {
-          txtInput.click();
+          fileInput.click();
         });
 
+        fileInput.addEventListener('change', async (e) => {
+          if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            if (file.name.endsWith('.zip')) {
+              await this.handleZipFile(file);
+            } else if (file.name.endsWith('.txt')) {
+              await this.handleTxtFile(file);
+              // Eski yöntem: medya klasörü seçimi
+              mediaInput.click();
+            }
+          }
+        });
+
+        // Eski yöntem için (geriye dönük uyumluluk)
         txtInput.addEventListener('change', (e) => {
           if (e.target.files.length > 0) {
             this.handleTxtFile(e.target.files[0]);
@@ -1203,7 +1220,105 @@
         }
       },
 
+      async handleZipFile(zipFile) {
+        const loading = document.getElementById('loading');
+        loading.style.display = 'block';
+        loading.textContent = 'Zip dosyası açılıyor...';
+
+        try {
+          // JSZip kontrolü
+          if (typeof JSZip === 'undefined') {
+            this.showError('JSZip kütüphanesi yüklenemedi. Lütfen sayfayı yenileyin.');
+            loading.style.display = 'none';
+            return;
+          }
+
+          const zip = await JSZip.loadAsync(zipFile);
+          const files = zip.files;
+          
+          let txtFile = null;
+          const mediaFiles = [];
+
+          // Zip içindeki dosyaları işle
+          for (const [path, zipEntry] of Object.entries(files)) {
+            if (zipEntry.dir) continue; // Klasörleri atla
+
+            const fileName = path.split('/').pop(); // Dosya adını al
+            const blob = await zipEntry.async('blob');
+            
+            // File objesi oluştur
+            const file = new File([blob], fileName, { type: this.getMimeType(fileName) });
+
+            if (fileName.endsWith('.txt')) {
+              txtFile = file;
+            } else {
+              mediaFiles.push(file);
+            }
+          }
+
+          if (!txtFile) {
+            this.showError('Zip dosyasında .txt dosyası bulunamadı.');
+            loading.style.display = 'none';
+            return;
+          }
+
+          // Medya dosyalarını kaydet
+          for (let file of mediaFiles) {
+            await Storage.saveMedia(file.name, file, file.type);
+          }
+
+          // Mesajları parse et ve göster
+          const text = await txtFile.text();
+          const messages = WhatsAppParser.parse(text);
+          
+          if (messages.length === 0) {
+            this.showError('Mesaj bulunamadı. Dosya formatını kontrol edin.');
+            loading.style.display = 'none';
+            return;
+          }
+
+          this.mediaFiles = mediaFiles;
+          await this.processFiles(messages);
+
+        } catch (error) {
+          console.error('Zip açma hatası:', error);
+          this.showError('Zip dosyası açılamadı: ' + error.message);
+          loading.style.display = 'none';
+        }
+      },
+
+      getMimeType(fileName) {
+        const ext = fileName.split('.').pop().toLowerCase();
+        const mimeTypes = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'gif': 'image/gif',
+          'webp': 'image/webp',
+          'mp4': 'video/mp4',
+          'webm': 'video/webm',
+          'ogg': 'video/ogg',
+          'mp3': 'audio/mpeg',
+          'wav': 'audio/wav',
+          'ogg': 'audio/ogg',
+          'pdf': 'application/pdf',
+          'doc': 'application/msword',
+          'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'xls': 'application/vnd.ms-excel',
+          'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        };
+        return mimeTypes[ext] || 'application/octet-stream';
+      },
+
       async handleFiles(files) {
+        // Zip dosyası kontrolü
+        const zipFile = Array.from(files).find(f => f.name.endsWith('.zip'));
+        if (zipFile) {
+          await this.handleZipFile(zipFile);
+          return;
+        }
+
+        // Eski yöntem: txt + medya dosyaları
         const txtFile = Array.from(files).find(f => f.name.endsWith('.txt'));
         const mediaFiles = Array.from(files).filter(f => !f.name.endsWith('.txt'));
 
