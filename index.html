@@ -678,13 +678,43 @@
         });
       }
       
-      const transaction = db.transaction(['media'], 'readwrite');
-      const store = transaction.objectStore('media');
+      // Process files in batches to avoid transaction timeout
+      const batchSize = 10;
+      const entries = Array.from(filesMap.entries());
       
-      for (const [name, file] of filesMap.entries()) {
-        const arrayBuffer = await file.arrayBuffer();
-        await store.put(arrayBuffer, name);
-        mediaFiles.set(name, { name, type: file.type, size: file.size });
+      for (let i = 0; i < entries.length; i += batchSize) {
+        const batch = entries.slice(i, i + batchSize);
+        
+        // Create promises for each file in batch
+        const promises = batch.map(async ([name, file]) => {
+          try {
+            // Read file as array buffer first
+            const arrayBuffer = await file.arrayBuffer();
+            
+            // Then store in IndexedDB with separate transaction
+            return new Promise((resolve, reject) => {
+              const transaction = db.transaction(['media'], 'readwrite');
+              const store = transaction.objectStore('media');
+              
+              const request = store.put(arrayBuffer, name);
+              
+              request.onsuccess = () => {
+                mediaFiles.set(name, { name, type: file.type, size: file.size });
+                resolve();
+              };
+              
+              request.onerror = () => {
+                reject(request.error);
+              };
+            });
+          } catch (error) {
+            console.error(`Error storing ${name}:`, error);
+            // Continue with other files even if one fails
+          }
+        });
+        
+        // Wait for batch to complete
+        await Promise.all(promises);
       }
     }
     
