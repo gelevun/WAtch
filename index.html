@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#075e54">
+  <meta name="description" content="WhatsApp sohbet görüntüleyici - Export edilen mesajları görüntüleyin">
+  <title>WhatsApp Chat Viewer</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root {
+      --whatsapp-green: #075e54;
+      --whatsapp-light-green: #25d366;
+      --whatsapp-dark-green: #128c7e;
+      --message-sent: #dcf8c6;
+      --message-received: #ffffff;
+      --text-primary: #111b21;
+      --text-secondary: #667781;
+      --border-color: #e9edef;
+      --bg-primary: #efeae2;
+      --bg-secondary: #f0f2f5;
+      --avatar-size: 40px;
+      --bubble-radius: 7.5px;
+      --shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: var(--whatsapp-green);
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 500;
+    }
+
+    .upload-section {
+      background: white;
+      padding: 20px;
+      margin: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .upload-section.hidden {
+      display: none;
+    }
+
+    .upload-area {
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: var(--bg-secondary);
+    }
+
+    .upload-area:hover {
+      border-color: var(--whatsapp-light-green);
+      background: #f8f9fa;
+    }
+
+    .upload-area.dragover {
+      border-color: var(--whatsapp-light-green);
+      background: #e8f5e9;
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .upload-text {
+      font-size: 16px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .upload-hint {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 16px 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .chat-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-container::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,0.2);
+      border-radius: 3px;
+    }
+
+    .date-separator {
+      text-align: center;
+      margin: 24px 0;
+      position: relative;
+    }
+
+    .date-separator::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .date-separator span {
+      background: var(--bg-primary);
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      position: relative;
+      display: inline-block;
+    }
+
+    .message-group {
+      margin-bottom: 2px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      display: flex;
+      margin-bottom: 2px;
+      padding: 6px 8px 8px 8px;
+      animation: fadeIn 0.2s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.sent {
+      justify-content: flex-end;
+    }
+
+    .message.received {
+      justify-content: flex-start;
+    }
+
+    .message-content {
+      max-width: 75%;
+      min-width: 100px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .message.sent .message-content {
+      align-items: flex-end;
+    }
+
+    .message.received .message-content {
+      align-items: flex-start;
+    }
+
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .message.received .message-header {
+      padding-left: 4px;
+    }
+
+    .avatar {
+      width: var(--avatar-size);
+      height: var(--avatar-size);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .sender-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .message-bubble {
+      padding: 6px 7px 8px 9px;
+      border-radius: var(--bubble-radius);
+      box-shadow: var(--shadow);
+      word-wrap: break-word;
+      position: relative;
+    }
+
+    .message.sent .message-bubble {
+      background: var(--message-sent);
+      border-bottom-right-radius: 2px;
+    }
+
+    .message.received .message-bubble {
+      background: var(--message-received);
+      border-bottom-left-radius: 2px;
+    }
+
+    .message-text {
+      font-size: 14.2px;
+      line-height: 19px;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+      text-align: right;
+      padding-right: 2px;
+    }
+
+    .message.received .message-time {
+      text-align: left;
+    }
+
+    .media-container {
+      margin: -6px -7px -8px -9px;
+      border-radius: var(--bubble-radius);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .media-container img,
+    .media-container video {
+      width: 100%;
+      height: auto;
+      display: block;
+      max-height: 300px;
+      object-fit: cover;
+    }
+
+    .media-thumbnail {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      background: #f0f0f0;
+    }
+
+    .media-placeholder {
+      width: 100%;
+      height: 200px;
+      background: var(--bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .audio-player-container {
+      padding: 12px;
+      background: rgba(0,0,0,0.05);
+    }
+
+    .audio-player {
+      width: 100%;
+      height: 32px;
+    }
+
+    .document-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(0,0,0,0.05);
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .document-icon {
+      font-size: 32px;
+    }
+
+    .document-info {
+      flex: 1;
+    }
+
+    .document-name {
+      font-weight: 500;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    .document-size {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .media-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.95);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      touch-action: pan-y pinch-zoom;
+    }
+
+    .media-modal.active {
+      display: flex;
+    }
+
+    .media-modal-content {
+      max-width: 100%;
+      max-height: 100%;
+      position: relative;
+      touch-action: pan-y pinch-zoom;
+    }
+
+    .media-modal-content img,
+    .media-modal-content video {
+      max-width: 100vw;
+      max-height: 100vh;
+      object-fit: contain;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .media-modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1001;
+      touch-action: manipulation;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-secondary);
+    }
+
+    .error {
+      background: #ffebee;
+      color: #c62828;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 16px;
+      font-size: 14px;
+    }
+
+    .stats {
+      background: white;
+      padding: 12px 16px;
+      margin: 0 16px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .stats.hidden {
+      display: none;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --message-sent: #005c4b;
+        --message-received: #202c33;
+        --text-primary: #e9edef;
+        --text-secondary: #8696a0;
+        --border-color: #313d45;
+        --bg-primary: #0b141a;
+        --bg-secondary: #111b21;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .message-content {
+        max-width: 85%;
+      }
+
+      .upload-section {
+        margin: 8px;
+        padding: 16px;
+      }
+
+      .chat-container {
+        padding: 8px 4px;
+      }
+    }
+
+    .virtual-scroll-spacer {
+      height: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="header">
+      <h1>WhatsApp Chat Viewer</h1>
+    </div>
+
+    <div class="upload-section" id="uploadSection">
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">WhatsApp Export Dosyasını Yükleyin</div>
+        <div class="upload-hint">.txt dosyasını ve medya klasörünü seçin</div>
+        <input type="file" id="txtFileInput" class="file-input" accept=".txt" />
+        <input type="file" id="mediaFileInput" class="file-input" webkitdirectory directory multiple />
+      </div>
+    </div>
+
+    <div class="stats hidden" id="stats">
+      <span>Mesajlar: <strong id="messageCount">0</strong></span>
+      <span>Medya: <strong id="mediaCount">0</strong></span>
+    </div>
+
+    <div class="error hidden" id="error"></div>
+
+    <div class="chat-container" id="chatContainer">
+      <div class="loading" id="loading">Dosya yükleniyor...</div>
+    </div>
+
+    <div class="media-modal" id="mediaModal">
+      <button class="media-modal-close" id="modalClose">×</button>
+      <div class="media-modal-content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== UTILITY FUNCTIONS ====================
+    const Utils = {
+      formatDate(date) {
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        if (date.toDateString() === today.toDateString()) {
+          return 'Bugün';
+        } else if (date.toDateString() === yesterday.toDateString()) {
+          return 'Dün';
+        } else {
+          const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 
+                         'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+          return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+        }
+      },
+
+      formatTime(date) {
+        return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      },
+
+      getAvatarColor(name) {
+        const colors = [
+          '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b',
+          '#eb4d4b', '#6c5ce7', '#a29bfe', '#fd79a8', '#00b894'
+        ];
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+          hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+      },
+
+      getInitials(name) {
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+      },
+
+      debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+          const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+          };
+          clearTimeout(timeout);
+          timeout = setTimeout(later, wait);
+        };
+      }
+    };
+
+    // ==================== WHATSAPP PARSER ====================
+    const WhatsAppParser = {
+      parse(text) {
+        const messages = [];
+        const lines = text.split('\n');
+        let currentMessage = null;
+
+        // WhatsApp export formatları:
+        // [DD.MM.YY, SS:DD] İsim: Mesaj
+        // DD/MM/YY, SS:DD - İsim: Mesaj
+        const patterns = [
+          /^\[(\d{1,2})\.(\d{1,2})\.(\d{2,4}),\s*(\d{1,2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
+          /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*-\s*(.+?):\s*(.+)$/
+        ];
+
+        for (let line of lines) {
+          line = line.trim();
+          if (!line) continue;
+
+          let matched = false;
+          for (let pattern of patterns) {
+            const match = line.match(pattern);
+            if (match) {
+              matched = true;
+              const groups = match;
+              
+              let day, month, year, hour, minute, sender, text;
+              
+              if (pattern === patterns[0]) {
+                // [DD.MM.YY, SS:DD] format
+                day = parseInt(groups[1]);
+                month = parseInt(groups[2]) - 1;
+                year = parseInt(groups[3]);
+                if (year < 100) year += 2000;
+                hour = parseInt(groups[4]);
+                minute = parseInt(groups[5]);
+                sender = groups[6].trim();
+                text = groups[7];
+              } else {
+                // DD/MM/YY, SS:DD - format
+                day = parseInt(groups[1]);
+                month = parseInt(groups[2]) - 1;
+                year = parseInt(groups[3]);
+                if (year < 100) year += 2000;
+                hour = parseInt(groups[4]);
+                minute = parseInt(groups[5]);
+                sender = groups[6].trim();
+                text = groups[7];
+              }
+
+              const date = new Date(year, month, day, hour, minute);
+              
+              // Önceki mesajı kaydet
+              if (currentMessage) {
+                messages.push(currentMessage);
+              }
+
+              // Yeni mesaj oluştur
+              currentMessage = {
+                date,
+                sender,
+                text: text.trim(),
+                media: null,
+                isMedia: false
+              };
+
+              // Medya kontrolü
+              const mediaMatch = text.match(/<attached:\s*(.+?)>|image omitted|video omitted|audio omitted|document omitted/);
+              if (mediaMatch) {
+                currentMessage.isMedia = true;
+                if (mediaMatch[1]) {
+                  currentMessage.media = mediaMatch[1].trim();
+                } else {
+                  currentMessage.media = 'unknown';
+                }
+              }
+
+              break;
+            }
+          }
+
+          // Eğer pattern eşleşmediyse, önceki mesajın devamı olabilir
+          if (!matched && currentMessage) {
+            currentMessage.text += '\n' + line;
+          }
+        }
+
+        // Son mesajı ekle
+        if (currentMessage) {
+          messages.push(currentMessage);
+        }
+
+        return messages;
+      }
+    };
+
+    // ==================== INDEXEDDB STORAGE ====================
+    const Storage = {
+      db: null,
+      dbName: 'WhatsAppChatViewer',
+      dbVersion: 1,
+
+      async init() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(this.dbName, this.dbVersion);
+
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            this.db = request.result;
+            resolve();
+          };
+
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            
+            if (!db.objectStoreNames.contains('media')) {
+              const mediaStore = db.createObjectStore('media', { keyPath: 'name' });
+              mediaStore.createIndex('type', 'type', { unique: false });
+            }
+
+            if (!db.objectStoreNames.contains('messages')) {
+              db.createObjectStore('messages', { keyPath: 'id', autoIncrement: true });
+            }
+          };
+        });
+      },
+
+      async saveMedia(name, blob, type) {
+        if (!this.db) await this.init();
+        
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(['media'], 'readwrite');
+          const store = transaction.objectStore('media');
+          const request = store.put({ name, blob, type, timestamp: Date.now() });
+          
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      },
+
+      async getMedia(name) {
+        if (!this.db) await this.init();
+        
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(['media'], 'readonly');
+          const store = transaction.objectStore('media');
+          const request = store.get(name);
+          
+          request.onsuccess = () => {
+            const result = request.result;
+            resolve(result ? result.blob : null);
+          };
+          request.onerror = () => reject(request.error);
+        });
+      },
+
+      async getAllMediaNames() {
+        if (!this.db) await this.init();
+        
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(['media'], 'readonly');
+          const store = transaction.objectStore('media');
+          const request = store.getAll();
+          
+          request.onsuccess = () => {
+            const names = request.result.map(r => r.name);
+            resolve(names);
+          };
+          request.onerror = () => reject(request.error);
+        });
+      }
+    };
+
+    // ==================== MEDIA VIEWER ====================
+    const MediaViewer = {
+      modal: null,
+      modalContent: null,
+      closeButton: null,
+      touchStartX: 0,
+      touchStartY: 0,
+      currentScale: 1,
+      currentTranslateX: 0,
+      currentTranslateY: 0,
+
+      init() {
+        this.modal = document.getElementById('mediaModal');
+        this.modalContent = document.getElementById('modalContent');
+        this.closeButton = document.getElementById('modalClose');
+
+        this.closeButton.addEventListener('click', () => this.close());
+        this.modal.addEventListener('click', (e) => {
+          if (e.target === this.modal) this.close();
+        });
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') this.close();
+        });
+
+        // Touch gesture desteği
+        this.setupTouchGestures();
+      },
+
+      setupTouchGestures() {
+        let initialDistance = 0;
+        let initialScale = 1;
+
+        this.modalContent.addEventListener('touchstart', (e) => {
+          if (e.touches.length === 1) {
+            this.touchStartX = e.touches[0].clientX;
+            this.touchStartY = e.touches[0].clientY;
+          } else if (e.touches.length === 2) {
+            // Pinch zoom
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            initialDistance = Math.hypot(
+              touch2.clientX - touch1.clientX,
+              touch2.clientY - touch1.clientY
+            );
+            initialScale = this.currentScale;
+          }
+        });
+
+        this.modalContent.addEventListener('touchmove', (e) => {
+          if (e.touches.length === 2) {
+            // Pinch zoom
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            const currentDistance = Math.hypot(
+              touch2.clientX - touch1.clientX,
+              touch2.clientY - touch1.clientY
+            );
+            const scale = initialScale * (currentDistance / initialDistance);
+            this.currentScale = Math.max(1, Math.min(scale, 3));
+            
+            const img = this.modalContent.querySelector('img');
+            if (img) {
+              img.style.transform = `scale(${this.currentScale})`;
+            }
+          }
+        });
+
+        this.modalContent.addEventListener('touchend', () => {
+          if (this.currentScale < 1.1) {
+            this.currentScale = 1;
+            const img = this.modalContent.querySelector('img');
+            if (img) {
+              img.style.transform = 'scale(1)';
+            }
+          }
+        });
+      },
+
+      async showMedia(mediaName, type) {
+        const blob = await Storage.getMedia(mediaName);
+        if (!blob) {
+          this.showError('Medya dosyası bulunamadı');
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        this.modalContent.innerHTML = '';
+
+        if (type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.src = url;
+          img.style.maxWidth = '100%';
+          img.style.maxHeight = '100%';
+          this.modalContent.appendChild(img);
+        } else if (type.startsWith('video/')) {
+          const video = document.createElement('video');
+          video.src = url;
+          video.controls = true;
+          video.style.maxWidth = '100%';
+          video.style.maxHeight = '100%';
+          this.modalContent.appendChild(video);
+        } else if (type.startsWith('audio/')) {
+          const audio = document.createElement('audio');
+          audio.src = url;
+          audio.controls = true;
+          audio.style.width = '100%';
+          this.modalContent.appendChild(audio);
+        } else {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = mediaName;
+          link.textContent = 'İndir: ' + mediaName;
+          link.style.color = 'white';
+          link.style.padding = '20px';
+          this.modalContent.appendChild(link);
+        }
+
+        this.modal.classList.add('active');
+      },
+
+      close() {
+        this.modal.classList.remove('active');
+        // URL'leri temizle
+        const elements = this.modalContent.querySelectorAll('img, video, audio, a');
+        elements.forEach(el => {
+          if (el.src) URL.revokeObjectURL(el.src);
+          if (el.href) URL.revokeObjectURL(el.href);
+        });
+        this.modalContent.innerHTML = '';
+        // Reset transform
+        this.currentScale = 1;
+        this.currentTranslateX = 0;
+        this.currentTranslateY = 0;
+      },
+
+      showError(message) {
+        alert(message);
+      }
+    };
+
+    // ==================== CHAT UI ====================
+    const ChatUI = {
+      container: null,
+      messages: [],
+      mediaMap: new Map(),
+      lastDate: null,
+      observer: null,
+
+      init() {
+        this.container = document.getElementById('chatContainer');
+        this.setupIntersectionObserver();
+      },
+
+      setupIntersectionObserver() {
+        this.observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              if (img.dataset.src) {
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
+                this.observer.unobserve(img);
+              }
+            }
+          });
+        }, {
+          rootMargin: '50px'
+        });
+      },
+
+      async renderMessages(messages, mediaFiles) {
+        this.messages = messages;
+        this.mediaMap.clear();
+
+        // Medya dosyalarını map'e ekle
+        for (let file of mediaFiles) {
+          const name = file.name.toLowerCase();
+          this.mediaMap.set(name, file);
+        }
+
+        this.container.innerHTML = '';
+        this.lastDate = null;
+
+        // Virtual scrolling için sadece görünen mesajları render et
+        this.renderVisibleMessages();
+        this.setupVirtualScrolling();
+      },
+
+      renderVisibleMessages() {
+        const fragment = document.createDocumentFragment();
+        const viewportHeight = window.innerHeight;
+        const itemHeight = 60; // Ortalama mesaj yüksekliği
+        const buffer = 5; // Buffer mesaj sayısı
+        
+        // İlk yüklemede tüm mesajları render et (daha sonra virtual scrolling devreye girer)
+        for (let i = 0; i < this.messages.length; i++) {
+          const message = this.messages[i];
+          const messageEl = this.createMessageElement(message);
+          fragment.appendChild(messageEl);
+        }
+
+        this.container.appendChild(fragment);
+      },
+
+      setupVirtualScrolling() {
+        // Scroll event için debounce
+        let scrollTimeout;
+        this.container.addEventListener('scroll', () => {
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            // Scroll pozisyonunu kaydet
+            localStorage.setItem('chatScrollPosition', this.container.scrollTop);
+          }, 300);
+        });
+
+        // Önceki scroll pozisyonunu geri yükle
+        const savedPosition = localStorage.getItem('chatScrollPosition');
+        if (savedPosition) {
+          setTimeout(() => {
+            this.container.scrollTop = parseInt(savedPosition);
+          }, 100);
+        }
+      },
+
+      createMessageElement(message) {
+        const group = document.createElement('div');
+        group.className = 'message-group';
+
+        // Tarih ayırıcı
+        const messageDate = new Date(message.date);
+        const dateStr = messageDate.toDateString();
+        
+        if (!this.lastDate || this.lastDate !== dateStr) {
+          const separator = document.createElement('div');
+          separator.className = 'date-separator';
+          separator.innerHTML = `<span>${Utils.formatDate(messageDate)}</span>`;
+          group.appendChild(separator);
+          this.lastDate = dateStr;
+        }
+
+        // Mesaj elementi
+        const messageEl = document.createElement('div');
+        messageEl.className = `message ${message.sender === 'Sen' || message.sender === 'You' ? 'sent' : 'received'}`;
+
+        const content = document.createElement('div');
+        content.className = 'message-content';
+
+        // Header (sadece received mesajlar için)
+        if (messageEl.classList.contains('received')) {
+          const header = document.createElement('div');
+          header.className = 'message-header';
+          
+          const avatar = document.createElement('div');
+          avatar.className = 'avatar';
+          avatar.style.background = Utils.getAvatarColor(message.sender);
+          avatar.textContent = Utils.getInitials(message.sender);
+          
+          const name = document.createElement('span');
+          name.className = 'sender-name';
+          name.textContent = message.sender;
+
+          header.appendChild(avatar);
+          header.appendChild(name);
+          content.appendChild(header);
+        }
+
+        // Bubble
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+
+        if (message.isMedia && message.media) {
+          this.createMediaElement(bubble, message);
+        } else {
+          const text = document.createElement('div');
+          text.className = 'message-text';
+          text.textContent = message.text;
+          bubble.appendChild(text);
+        }
+
+        // Time
+        const time = document.createElement('div');
+        time.className = 'message-time';
+        time.textContent = Utils.formatTime(messageDate);
+        bubble.appendChild(time);
+
+        content.appendChild(bubble);
+        messageEl.appendChild(content);
+        group.appendChild(messageEl);
+
+        return group;
+      },
+
+      async createMediaElement(bubble, message) {
+        const mediaName = message.media.toLowerCase();
+        const mediaFile = this.mediaMap.get(mediaName);
+
+        if (!mediaFile) {
+          const placeholder = document.createElement('div');
+          placeholder.className = 'media-placeholder';
+          placeholder.textContent = 'Medya dosyası bulunamadı: ' + message.media;
+          bubble.appendChild(placeholder);
+          return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'media-container';
+
+        // Blob URL oluştur
+        let blob = await Storage.getMedia(mediaFile.name);
+        if (!blob) {
+          // Eğer IndexedDB'de yoksa, dosyayı kaydet
+          await Storage.saveMedia(mediaFile.name, mediaFile, mediaFile.type);
+          blob = await Storage.getMedia(mediaFile.name);
+        }
+        
+        const url = URL.createObjectURL(blob);
+        await this.createMediaElementByType(container, url, mediaFile, blob);
+
+        // Video ve audio için click event ekleme (kendi kontrolleri var)
+        if (!mediaFile.type.startsWith('video/') && !mediaFile.type.startsWith('audio/')) {
+          container.addEventListener('click', () => {
+            MediaViewer.showMedia(mediaFile.name, mediaFile.type);
+          });
+        }
+
+        bubble.appendChild(container);
+      },
+
+      async createMediaElementByType(container, url, file, blob) {
+        if (file.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          
+          // Önce placeholder göster
+          img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3C/svg%3E';
+          img.className = 'media-thumbnail';
+          img.loading = 'lazy';
+          container.appendChild(img);
+          
+          // Thumbnail oluştur ve kullan (async, non-blocking)
+          ThumbnailGenerator.generateThumbnail(blob, 200, 200)
+            .then(thumbnail => {
+              const thumbnailUrl = URL.createObjectURL(thumbnail);
+              img.src = thumbnailUrl;
+              img.dataset.fullSrc = url;
+            })
+            .catch(() => {
+              // Thumbnail oluşturulamazsa normal resmi göster
+              img.src = url;
+            });
+          
+          // Lazy loading için observer'a ekle
+          if (this.observer) {
+            this.observer.observe(img);
+          }
+        } else if (file.type.startsWith('video/')) {
+          const video = document.createElement('video');
+          video.src = url;
+          video.className = 'media-thumbnail';
+          video.controls = true;
+          video.preload = 'metadata';
+          container.appendChild(video);
+        } else if (file.type.startsWith('audio/')) {
+          const audioContainer = document.createElement('div');
+          audioContainer.className = 'audio-player-container';
+          const audio = document.createElement('audio');
+          audio.src = url;
+          audio.controls = true;
+          audio.className = 'audio-player';
+          audioContainer.appendChild(audio);
+          container.appendChild(audioContainer);
+        } else {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = file.name;
+          link.className = 'document-link';
+          link.innerHTML = `
+            <div class="document-icon">📄</div>
+            <div class="document-info">
+              <div class="document-name">${file.name}</div>
+              <div class="document-size">${this.formatFileSize(file.size)}</div>
+            </div>
+          `;
+          container.appendChild(link);
+        }
+      },
+
+      formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+      }
+    };
+
+    // ==================== MAIN APP ====================
+    const App = {
+      txtFile: null,
+      mediaFiles: [],
+
+      async init() {
+        await Storage.init();
+        ChatUI.init();
+        MediaViewer.init();
+        this.setupEventListeners();
+      },
+
+      setupEventListeners() {
+        const uploadArea = document.getElementById('uploadArea');
+        const txtInput = document.getElementById('txtFileInput');
+        const mediaInput = document.getElementById('mediaFileInput');
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+          uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+          e.preventDefault();
+          uploadArea.classList.remove('dragover');
+          this.handleFiles(e.dataTransfer.files);
+        });
+
+        uploadArea.addEventListener('click', () => {
+          txtInput.click();
+        });
+
+        txtInput.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            this.handleTxtFile(e.target.files[0]);
+            mediaInput.click();
+          }
+        });
+
+        mediaInput.addEventListener('change', (e) => {
+          this.handleMediaFiles(Array.from(e.target.files));
+        });
+      },
+
+      async handleTxtFile(file) {
+        this.txtFile = file;
+        const text = await file.text();
+        const messages = WhatsAppParser.parse(text);
+        
+        if (messages.length === 0) {
+          this.showError('Mesaj bulunamadı. Dosya formatını kontrol edin.');
+          return;
+        }
+
+        // Medya dosyaları yüklenene kadar bekle
+        if (this.mediaFiles.length > 0) {
+          await this.processFiles(messages);
+        }
+      },
+
+      async handleMediaFiles(files) {
+        this.mediaFiles = files;
+        
+        // Medya dosyalarını IndexedDB'ye kaydet
+        for (let file of files) {
+          await Storage.saveMedia(file.name, file, file.type);
+        }
+
+        if (this.txtFile) {
+          const text = await this.txtFile.text();
+          const messages = WhatsAppParser.parse(text);
+          await this.processFiles(messages);
+        }
+      },
+
+      async handleFiles(files) {
+        const txtFile = Array.from(files).find(f => f.name.endsWith('.txt'));
+        const mediaFiles = Array.from(files).filter(f => !f.name.endsWith('.txt'));
+
+        if (txtFile) {
+          await this.handleTxtFile(txtFile);
+        }
+
+        if (mediaFiles.length > 0) {
+          await this.handleMediaFiles(mediaFiles);
+        }
+      },
+
+      async processFiles(messages) {
+        const loading = document.getElementById('loading');
+        loading.style.display = 'block';
+
+        try {
+          await ChatUI.renderMessages(messages, this.mediaFiles);
+          
+          document.getElementById('uploadSection').classList.add('hidden');
+          loading.style.display = 'none';
+          
+          // Stats
+          const stats = document.getElementById('stats');
+          const messageCount = document.getElementById('messageCount');
+          const mediaCount = document.getElementById('mediaCount');
+          
+          messageCount.textContent = messages.length;
+          mediaCount.textContent = this.mediaFiles.length;
+          stats.classList.remove('hidden');
+        } catch (error) {
+          this.showError('Hata: ' + error.message);
+          loading.style.display = 'none';
+        }
+      },
+
+      showError(message) {
+        const errorEl = document.getElementById('error');
+        errorEl.textContent = message;
+        errorEl.classList.remove('hidden');
+        setTimeout(() => {
+          errorEl.classList.add('hidden');
+        }, 5000);
+      }
+    };
+
+    // ==================== THUMBNAIL GENERATION ====================
+    const ThumbnailGenerator = {
+      async generateThumbnail(blob, maxWidth = 200, maxHeight = 200) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          const url = URL.createObjectURL(blob);
+          
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Calculate dimensions
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            canvas.toBlob((thumbnailBlob) => {
+              resolve(thumbnailBlob);
+            }, 'image/jpeg', 0.8);
+          };
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Thumbnail generation failed'));
+          };
+          
+          img.src = url;
+        });
+      }
+    };
+
+    // ==================== SERVICE WORKER ====================
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        const swCode = `
+          const CACHE_NAME = 'whatsapp-viewer-v1';
+          const urlsToCache = [
+            '/',
+            '/index.html',
+            '/manifest.json'
+          ];
+
+          self.addEventListener('install', (event) => {
+            event.waitUntil(
+              caches.open(CACHE_NAME)
+                .then((cache) => cache.addAll(urlsToCache))
+            );
+          });
+
+          self.addEventListener('fetch', (event) => {
+            event.respondWith(
+              caches.match(event.request)
+                .then((response) => {
+                  return response || fetch(event.request);
+                })
+            );
+          });
+        `;
+
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+        
+        navigator.serviceWorker.register(swUrl)
+          .then(() => {
+            URL.revokeObjectURL(swUrl);
+          })
+          .catch(() => {
+            // Service worker registration failed, continue without it
+          });
+      });
+    }
+
+    // ==================== INITIALIZE APP ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      App.init();
+    });
+  </script>
+</body>
+</html>
+
