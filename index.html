@@ -570,12 +570,17 @@
         // WhatsApp export formatları (farklı diller ve formatlar):
         // [DD.MM.YY, SS:DD] İsim: Mesaj
         // DD/MM/YY, SS:DD - İsim: Mesaj
+        // [MM/DD/YY HH:MM:SS] İsim: Mesaj (ABD formatı, saniye ile)
         // [DD.MM.YYYY, SS:DD] İsim: Mesaj
         // DD/MM/YYYY, SS:DD - İsim: Mesaj
         // [DD-MM-YY, SS:DD] İsim: Mesaj
         // DD-MM-YY, SS:DD - İsim: Mesaj
         // [YYYY-MM-DD, SS:DD] İsim: Mesaj
         const patterns = [
+          // [MM/DD/YY HH:MM:SS] İsim: Mesaj (ABD formatı, saniye ile) - ÖNCE BU KONTROL EDİLSİN
+          /^\[(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
+          // [MM/DD/YY HH:MM] İsim: Mesaj (ABD formatı, saniye olmadan)
+          /^\[(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
           // [DD.MM.YY, SS:DD] İsim: Mesaj
           /^\[(\d{1,2})\.(\d{1,2})\.(\d{2,4}),\s*(\d{1,2}):(\d{2})\]\s*(.+?):\s*(.+)$/,
           // DD/MM/YY, SS:DD - İsim: Mesaj
@@ -618,7 +623,28 @@
               let day, month, year, hour, minute, sender, text;
               
               // Pattern tipine göre parse et
-              if (patternIndex === 0 || patternIndex === 6) {
+              if (patternIndex === 0) {
+                // [MM/DD/YY HH:MM:SS] format (ABD formatı, saniye ile)
+                month = parseInt(groups[1]) - 1; // MM (ay)
+                day = parseInt(groups[2]);      // DD (gün)
+                year = parseInt(groups[3]);      // YY
+                if (year < 100) year += 2000;
+                hour = parseInt(groups[4]);
+                minute = parseInt(groups[5]);
+                // groups[6] saniye, kullanmıyoruz
+                sender = groups[7].trim();
+                text = groups[8];
+              } else if (patternIndex === 1) {
+                // [MM/DD/YY HH:MM] format (ABD formatı, saniye olmadan)
+                month = parseInt(groups[1]) - 1; // MM (ay)
+                day = parseInt(groups[2]);      // DD (gün)
+                year = parseInt(groups[3]);      // YY
+                if (year < 100) year += 2000;
+                hour = parseInt(groups[4]);
+                minute = parseInt(groups[5]);
+                sender = groups[6].trim();
+                text = groups[7];
+              } else if (patternIndex === 2 || patternIndex === 8) {
                 // [DD.MM.YY/YYYY, SS:DD] format
                 day = parseInt(groups[1]);
                 month = parseInt(groups[2]) - 1;
@@ -628,7 +654,7 @@
                 minute = parseInt(groups[5]);
                 sender = groups[6].trim();
                 text = groups[7];
-              } else if (patternIndex === 1 || patternIndex === 7) {
+              } else if (patternIndex === 3 || patternIndex === 9) {
                 // DD/MM/YY/YYYY, SS:DD - format
                 day = parseInt(groups[1]);
                 month = parseInt(groups[2]) - 1;
@@ -638,7 +664,7 @@
                 minute = parseInt(groups[5]);
                 sender = groups[6].trim();
                 text = groups[7];
-              } else if (patternIndex === 2 || patternIndex === 3) {
+              } else if (patternIndex === 4 || patternIndex === 5) {
                 // [DD-MM-YY, SS:DD] veya DD-MM-YY, SS:DD - format
                 day = parseInt(groups[1]);
                 month = parseInt(groups[2]) - 1;
@@ -648,7 +674,7 @@
                 minute = parseInt(groups[5]);
                 sender = groups[6].trim();
                 text = groups[7];
-              } else if (patternIndex === 4 || patternIndex === 5) {
+              } else if (patternIndex === 6 || patternIndex === 7) {
                 // [YYYY-MM-DD, SS:DD] veya YYYY-MM-DD, SS:DD - format
                 year = parseInt(groups[1]);
                 month = parseInt(groups[2]) - 1;
