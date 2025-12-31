@@ -1318,20 +1318,119 @@
           audio.className = 'audio-player';
           audioContainer.appendChild(audio);
           container.appendChild(audioContainer);
-        } else {
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = file.name;
-          link.className = 'document-link';
-          link.innerHTML = `
-            <div class="document-icon">📄</div>
+        } else if (file.type === 'application/pdf') {
+          // PDF için özel görüntüleme
+          const pdfContainer = document.createElement('div');
+          pdfContainer.className = 'document-link';
+          pdfContainer.style.cursor = 'pointer';
+          pdfContainer.innerHTML = `
+            <div class="document-icon" style="font-size: 48px;">📕</div>
+            <div class="document-info">
+              <div class="document-name">${file.name}</div>
+              <div class="document-size">${this.formatFileSize(file.size)}</div>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">PDF - Tıklayarak görüntüle</div>
+            </div>
+          `;
+          pdfContainer.addEventListener('click', () => {
+            // PDF'i yeni sekmede aç
+            window.open(url, '_blank');
+          });
+          container.appendChild(pdfContainer);
+        } else if (file.type.includes('document') || 
+                   file.type.includes('spreadsheet') || 
+                   file.type.includes('presentation') ||
+                   file.name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|rtf|odt|ods|odp)$/i)) {
+          // Office dokümanları
+          const docContainer = document.createElement('div');
+          docContainer.className = 'document-link';
+          docContainer.style.cursor = 'pointer';
+          const icon = this.getDocumentIcon(file.name);
+          docContainer.innerHTML = `
+            <div class="document-icon" style="font-size: 48px;">${icon}</div>
+            <div class="document-info">
+              <div class="document-name">${file.name}</div>
+              <div class="document-size">${this.formatFileSize(file.size)}</div>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Doküman - İndir</div>
+            </div>
+          `;
+          docContainer.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = file.name;
+            link.click();
+          });
+          container.appendChild(docContainer);
+        } else if (file.type.includes('archive') || 
+                   file.type.includes('zip') || 
+                   file.type.includes('rar') ||
+                   file.name.match(/\.(zip|rar|7z|tar|gz)$/i)) {
+          // Arşiv dosyaları
+          const archiveContainer = document.createElement('div');
+          archiveContainer.className = 'document-link';
+          archiveContainer.innerHTML = `
+            <div class="document-icon" style="font-size: 48px;">📦</div>
             <div class="document-info">
               <div class="document-name">${file.name}</div>
               <div class="document-size">${this.formatFileSize(file.size)}</div>
             </div>
           `;
+          container.appendChild(archiveContainer);
+        } else {
+          // Diğer tüm dosya türleri için genel görüntüleyici
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = file.name;
+          link.className = 'document-link';
+          const icon = this.getFileIcon(file.name, file.type);
+          link.innerHTML = `
+            <div class="document-icon" style="font-size: 48px;">${icon}</div>
+            <div class="document-info">
+              <div class="document-name">${file.name}</div>
+              <div class="document-size">${this.formatFileSize(file.size)}</div>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${file.type || 'Dosya'}</div>
+            </div>
+          `;
           container.appendChild(link);
         }
+      },
+
+      getDocumentIcon(fileName) {
+        const ext = fileName.split('.').pop().toLowerCase();
+        const icons = {
+          'doc': '📝',
+          'docx': '📝',
+          'xls': '📊',
+          'xlsx': '📊',
+          'ppt': '📽️',
+          'pptx': '📽️',
+          'rtf': '📄',
+          'odt': '📝',
+          'ods': '📊',
+          'odp': '📽️'
+        };
+        return icons[ext] || '📄';
+      },
+
+      getFileIcon(fileName, mimeType) {
+        const ext = fileName.split('.').pop().toLowerCase();
+        const icons = {
+          'pdf': '📕',
+          'zip': '📦',
+          'rar': '📦',
+          '7z': '📦',
+          'exe': '⚙️',
+          'apk': '📱',
+          'dmg': '💿',
+          'html': '🌐',
+          'htm': '🌐',
+          'css': '🎨',
+          'js': '💻',
+          'json': '📋',
+          'xml': '📋',
+          'txt': '📄',
+          'log': '📋'
+        };
+        return icons[ext] || '📎';
       },
 
       formatFileSize(bytes) {
@@ -1551,26 +1650,71 @@
       getMimeType(fileName) {
         const ext = fileName.split('.').pop().toLowerCase();
         const mimeTypes = {
+          // Images
           'jpg': 'image/jpeg',
           'jpeg': 'image/jpeg',
           'png': 'image/png',
           'gif': 'image/gif',
           'webp': 'image/webp',
+          'bmp': 'image/bmp',
+          'svg': 'image/svg+xml',
+          'ico': 'image/x-icon',
+          'tiff': 'image/tiff',
+          'tif': 'image/tiff',
+          // Videos
           'mp4': 'video/mp4',
           'webm': 'video/webm',
           'ogg': 'video/ogg',
+          'ogv': 'video/ogg',
+          'avi': 'video/x-msvideo',
+          'mov': 'video/quicktime',
+          'wmv': 'video/x-ms-wmv',
+          'flv': 'video/x-flv',
+          'mkv': 'video/x-matroska',
+          '3gp': 'video/3gpp',
+          'm4v': 'video/mp4',
+          // Audio
           'mp3': 'audio/mpeg',
           'wav': 'audio/wav',
           'opus': 'audio/opus',
+          'ogg': 'audio/ogg',
+          'oga': 'audio/ogg',
           'm4a': 'audio/mp4',
           'aac': 'audio/aac',
+          'flac': 'audio/flac',
+          'wma': 'audio/x-ms-wma',
+          'amr': 'audio/amr',
+          // Documents
           'pdf': 'application/pdf',
           'doc': 'application/msword',
           'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           'xls': 'application/vnd.ms-excel',
           'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'ppt': 'application/vnd.ms-powerpoint',
+          'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'rtf': 'application/rtf',
+          'odt': 'application/vnd.oasis.opendocument.text',
+          'ods': 'application/vnd.oasis.opendocument.spreadsheet',
+          'odp': 'application/vnd.oasis.opendocument.presentation',
+          // Archives
+          'zip': 'application/zip',
+          'rar': 'application/x-rar-compressed',
+          '7z': 'application/x-7z-compressed',
+          'tar': 'application/x-tar',
+          'gz': 'application/gzip',
+          // Text
+          'txt': 'text/plain',
           'html': 'text/html',
-          'htm': 'text/html'
+          'htm': 'text/html',
+          'css': 'text/css',
+          'js': 'text/javascript',
+          'json': 'application/json',
+          'xml': 'application/xml',
+          'csv': 'text/csv',
+          // Other
+          'apk': 'application/vnd.android.package-archive',
+          'exe': 'application/x-msdownload',
+          'dmg': 'application/x-apple-diskimage'
         };
         return mimeTypes[ext] || 'application/octet-stream';
       },
