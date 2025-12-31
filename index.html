@@ -1316,29 +1316,66 @@
         }
 
         if (!mediaFile) {
-          // Medya dosyası bulunamadıysa bile dosya adını ve indirme linkini göster
-          const container = document.createElement('div');
-          container.className = 'media-container';
+          // Medya dosyası bulunamadıysa, tüm medya dosyalarını listele ve en benzerini bul
+          console.warn('Medya dosyası bulunamadı, alternatif arama yapılıyor:', mediaName);
           
-          const link = document.createElement('div');
-          link.className = 'document-link';
-          link.style.cursor = 'default';
+          // En benzer dosyayı bul (similarity scoring)
+          let bestMatch = null;
+          let bestScore = 0;
           
-          const icon = this.getFileIcon(message.media, '');
-          const ext = message.media.split('.').pop().toLowerCase();
-          const fileSize = 'Dosya bulunamadı';
+          for (let [fileName, file] of this.mediaMap.entries()) {
+            const fileNameLower = fileName.toLowerCase();
+            let score = 0;
+            
+            // Ortak karakter sayısı
+            const commonChars = [...mediaName].filter(char => fileNameLower.includes(char)).length;
+            score += commonChars;
+            
+            // Ortak numaralar
+            const mediaNums = mediaName.match(/\d+/g) || [];
+            const fileNums = fileNameLower.match(/\d+/g) || [];
+            const commonNums = mediaNums.filter(n => fileNums.includes(n)).length;
+            score += commonNums * 10;
+            
+            // Uzantı eşleşmesi
+            if (mediaName.split('.').pop() === fileNameLower.split('.').pop()) {
+              score += 50;
+            }
+            
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = file;
+            }
+          }
           
-          link.innerHTML = `
-            <div class="document-icon" style="font-size: 48px;">${icon}</div>
-            <div class="document-info">
-              <div class="document-name">${message.media}</div>
-              <div class="document-size" style="color: var(--text-secondary);">${fileSize}</div>
-            </div>
-          `;
-          
-          container.appendChild(link);
-          bubble.appendChild(container);
-          return;
+          if (bestMatch && bestScore > 20) {
+            console.log('En benzer dosya bulundu:', bestMatch.name, 'Score:', bestScore);
+            mediaFile = bestMatch;
+          } else {
+            // Medya dosyası bulunamadıysa bile dosya adını ve indirme linkini göster
+            const container = document.createElement('div');
+            container.className = 'media-container';
+            
+            const link = document.createElement('div');
+            link.className = 'document-link';
+            link.style.cursor = 'default';
+            
+            const icon = this.getFileIcon(message.media, '');
+            const ext = message.media.split('.').pop().toLowerCase();
+            const fileSize = 'Dosya bulunamadı';
+            
+            link.innerHTML = `
+              <div class="document-icon" style="font-size: 48px;">${icon}</div>
+              <div class="document-info">
+                <div class="document-name">${message.media}</div>
+                <div class="document-size" style="color: var(--text-secondary);">${fileSize}</div>
+              </div>
+            `;
+            
+            container.appendChild(link);
+            bubble.appendChild(container);
+            return;
+          }
         }
 
         const container = document.createElement('div');
