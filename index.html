@@ -1080,7 +1080,7 @@
         this.setupVirtualScrolling();
       },
 
-      renderVisibleMessages() {
+      async renderVisibleMessages() {
         const fragment = document.createDocumentFragment();
         const viewportHeight = window.innerHeight;
         const itemHeight = 60; // Ortalama mesaj yüksekliği
