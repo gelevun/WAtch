@@ -186,11 +186,16 @@
     .messages-container {
       flex: 1;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 16px;
       background-image: 
         linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
       background-size: 20px 20px;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      will-change: scroll-position;
+      overscroll-behavior: contain;
     }
     
     .messages-container::-webkit-scrollbar {
@@ -1017,7 +1022,10 @@
       } else {
         renderMessageBatch(0, messages.length);
         setTimeout(() => {
-          container.scrollTop = container.scrollHeight;
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth'
+          });
         }, 100);
       }
       
@@ -1104,33 +1112,41 @@
             }
           }
           
-          // Virtual scrolling logic
-          debounce(() => {
-            // Load more when near bottom
-            if (scrollTop + clientHeight > scrollHeight - 500 && visibleEnd < messages.length) {
-              const oldHeight = container.scrollHeight;
-              visibleEnd = Math.min(visibleEnd + itemsPerPage, messages.length);
-              renderMessageBatch(visibleStart, visibleEnd);
-              const newHeight = container.scrollHeight;
-              container.scrollTop = scrollTop + (newHeight - oldHeight);
-              buildDateSeparatorMap(); // Rebuild after render
-            }
-            
-            // Load previous when near top
-            if (scrollTop < 500 && visibleStart > 0) {
-              const oldHeight = container.scrollHeight;
-              const loadCount = Math.min(itemsPerPage, visibleStart);
-              visibleStart = Math.max(0, visibleStart - itemsPerPage);
-              const fragment = createMessageFragment(visibleStart, visibleStart + loadCount);
-              const firstChild = container.firstElementChild;
-              if (firstChild) {
-                container.insertBefore(fragment, firstChild);
+          // Virtual scrolling logic (throttled with requestAnimationFrame)
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            requestAnimationFrame(() => {
+              // Load more when near bottom
+              if (scrollTop + clientHeight > scrollHeight - 500 && visibleEnd < messages.length) {
+                const oldHeight = container.scrollHeight;
+                visibleEnd = Math.min(visibleEnd + itemsPerPage, messages.length);
+                renderMessageBatch(visibleStart, visibleEnd);
+                const newHeight = container.scrollHeight;
+                // Smooth scroll position update
+                requestAnimationFrame(() => {
+                  container.scrollTop = scrollTop + (newHeight - oldHeight);
+                });
+                buildDateSeparatorMap(); // Rebuild after render
               }
-              const newHeight = container.scrollHeight;
-              container.scrollTop = scrollTop + (newHeight - oldHeight);
-              buildDateSeparatorMap(); // Rebuild after render
-            }
-          }, 100)();
+              
+              // Load previous when near top
+              if (scrollTop < 500 && visibleStart > 0) {
+                const oldHeight = container.scrollHeight;
+                const loadCount = Math.min(itemsPerPage, visibleStart);
+                visibleStart = Math.max(0, visibleStart - itemsPerPage);
+                const fragment = createMessageFragment(visibleStart, visibleStart + loadCount);
+                const firstChild = container.firstElementChild;
+                if (firstChild) {
+                  container.insertBefore(fragment, firstChild);
+                }
+                const newHeight = container.scrollHeight;
+                requestAnimationFrame(() => {
+                  container.scrollTop = scrollTop + (newHeight - oldHeight);
+                });
+                buildDateSeparatorMap(); // Rebuild after render
+              }
+            });
+          }, 50);
         });
         
         // Initial build of date separator map
@@ -1139,41 +1155,55 @@
         }, 500);
       } else {
         // Even with few messages, enable fast scroll
+        let scrollTimeout = null;
+        let rafId = null;
+        
         container.addEventListener('scroll', () => {
-          const scrollTop = container.scrollTop;
-          const currentTime = Date.now();
-          const timeDelta = currentTime - lastScrollTime;
-          
-          if (timeDelta > 0) {
-            const scrollDelta = Math.abs(scrollTop - lastScrollTop);
-            scrollVelocity = scrollDelta / timeDelta;
-            isFastScrolling = scrollVelocity > 2;
+          // Cancel previous animation frame
+          if (rafId) {
+            cancelAnimationFrame(rafId);
           }
           
-          lastScrollTop = scrollTop;
-          lastScrollTime = currentTime;
-          
-          if (isFastScrolling) {
-            if (dateSeparators.length === 0) {
-              buildDateSeparatorMap();
+          // Use requestAnimationFrame for smooth updates
+          rafId = requestAnimationFrame(() => {
+            const scrollTop = container.scrollTop;
+            const currentTime = Date.now();
+            const timeDelta = currentTime - lastScrollTime;
+            
+            if (timeDelta > 0) {
+              const scrollDelta = Math.abs(scrollTop - lastScrollTop);
+              scrollVelocity = scrollDelta / timeDelta;
+              isFastScrolling = scrollVelocity > 2;
             }
             
-            const prevScrollTop = lastScrollTop;
-            const direction = scrollTop > prevScrollTop ? 'down' : 'up';
-            const nearest = findNearestDateSeparator(scrollTop, direction);
+            lastScrollTop = scrollTop;
+            lastScrollTime = currentTime;
             
-            if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 100) {
-              container.scrollTo({
-                top: nearest.offsetTop - 20,
-                behavior: 'smooth'
-              });
-              
-              setTimeout(() => {
-                isFastScrolling = false;
-              }, 300);
+            if (isFastScrolling) {
+              clearTimeout(scrollTimeout);
+              scrollTimeout = setTimeout(() => {
+                if (dateSeparators.length === 0) {
+                  buildDateSeparatorMap();
+                }
+                
+                const prevScrollTop = lastScrollTop;
+                const direction = scrollTop > prevScrollTop ? 'down' : 'up';
+                const nearest = findNearestDateSeparator(scrollTop, direction);
+                
+                if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 100) {
+                  container.scrollTo({
+                    top: nearest.offsetTop - 20,
+                    behavior: 'smooth'
+                  });
+                  
+                  setTimeout(() => {
+                    isFastScrolling = false;
+                  }, 400);
+                }
+              }, 150);
             }
-          }
-        });
+          });
+        }, { passive: true });
         
         setTimeout(() => {
           buildDateSeparatorMap();
