@@ -607,6 +607,7 @@
       <div class="chat-header">
         <div class="chat-title" id="chat-title">Sohbet</div>
         <div class="chat-info" id="chat-info"></div>
+        <button class="date-picker-btn" onclick="openDatePicker()" title="Tarihe Git">📅</button>
         <button onclick="resetApp()">Yeni Yükle</button>
       </div>
       <div class="messages-container" id="messages-container">
@@ -1620,6 +1621,158 @@
     document.getElementById('media-modal').addEventListener('click', (e) => {
       if (e.target.id === 'media-modal') {
         closeMediaModal();
+      }
+    });
+    
+    // Date picker functions
+    function openDatePicker() {
+      document.getElementById('date-picker-modal').classList.add('active');
+      // Set max date to today
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('date-input').max = today;
+    }
+    
+    function closeDatePicker() {
+      document.getElementById('date-picker-modal').classList.remove('active');
+    }
+    
+    function goToDate() {
+      const dateInput = document.getElementById('date-input').value;
+      if (!dateInput) {
+        alert('Lütfen bir tarih seçin');
+        return;
+      }
+      
+      const selectedDate = new Date(dateInput);
+      goToNearestDate(selectedDate);
+      closeDatePicker();
+    }
+    
+    function goToQuickDate(type) {
+      const today = new Date();
+      let targetDate = new Date();
+      
+      switch(type) {
+        case 'today':
+          targetDate = new Date(today);
+          break;
+        case 'yesterday':
+          targetDate.setDate(today.getDate() - 1);
+          break;
+        case 'week':
+          targetDate.setDate(today.getDate() - 7);
+          break;
+        case 'month':
+          targetDate.setMonth(today.getMonth() - 1);
+          break;
+        case '3months':
+          targetDate.setMonth(today.getMonth() - 3);
+          break;
+        case 'year':
+          targetDate.setFullYear(today.getFullYear() - 1);
+          break;
+      }
+      
+      // Set date input
+      document.getElementById('date-input').value = targetDate.toISOString().split('T')[0];
+      goToNearestDate(targetDate);
+      closeDatePicker();
+    }
+    
+    function goToNearestDate(targetDate) {
+      if (!container || messages.length === 0) return;
+      
+      // Find nearest message to target date
+      let nearestMessage = null;
+      let minDiff = Infinity;
+      let nearestIndex = -1;
+      
+      const targetTime = targetDate.getTime();
+      
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        const messageDate = new Date(message.date);
+        const diff = Math.abs(messageDate.getTime() - targetTime);
+        
+        if (diff < minDiff) {
+          minDiff = diff;
+          nearestMessage = message;
+          nearestIndex = i;
+        }
+      }
+      
+      if (nearestMessage && nearestIndex >= 0) {
+        // Find date separator for this message
+        const messageDate = nearestMessage.date;
+        const separators = container.querySelectorAll('.date-separator');
+        
+        let targetSeparator = null;
+        for (const sep of separators) {
+          const dateText = sep.querySelector('.date-text').textContent;
+          // Try to match date
+          if (dateText.includes(formatDate(messageDate)) || 
+              dateText === formatDate(messageDate)) {
+            targetSeparator = sep;
+            break;
+          }
+        }
+        
+        if (targetSeparator) {
+          // Scroll to date separator
+          targetSeparator.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        } else {
+          // If separator not found, scroll to message position
+          // Render messages if needed
+          if (nearestIndex < visibleStart || nearestIndex >= visibleEnd) {
+            // Need to render this range
+            const start = Math.max(0, nearestIndex - 10);
+            const end = Math.min(messages.length, nearestIndex + 10);
+            visibleStart = start;
+            visibleEnd = end;
+            container.innerHTML = '';
+            renderMessageBatch(start, end);
+            
+            setTimeout(() => {
+              const separators = container.querySelectorAll('.date-separator');
+              for (const sep of separators) {
+                const dateText = sep.querySelector('.date-text').textContent;
+                if (dateText.includes(formatDate(messageDate))) {
+                  sep.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                  });
+                  break;
+                }
+              }
+            }, 100);
+          } else {
+            // Find and scroll to the message
+            const messageElements = container.querySelectorAll('.message-group');
+            if (messageElements[nearestIndex - visibleStart]) {
+              messageElements[nearestIndex - visibleStart].scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    // Close date picker on background click
+    document.getElementById('date-picker-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'date-picker-modal') {
+        closeDatePicker();
+      }
+    });
+    
+    // Close date picker on escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeDatePicker();
       }
     });
   </script>
