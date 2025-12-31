@@ -1067,17 +1067,31 @@
         this.messages = messages;
         this.mediaMap.clear();
 
-        // Medya dosyalarını map'e ekle
+        // Medya dosyalarını map'e ekle (birden fazla key ile)
         for (let file of mediaFiles) {
           const name = file.name.toLowerCase();
+          // Tam dosya adı ile
           this.mediaMap.set(name, file);
+          // Sadece dosya adı (path olmadan)
+          const fileNameOnly = name.split('/').pop();
+          if (fileNameOnly !== name) {
+            this.mediaMap.set(fileNameOnly, file);
+          }
+          // Dosya adının başındaki numarayı da key olarak ekle
+          const numberMatch = name.match(/^(\d+)/);
+          if (numberMatch) {
+            this.mediaMap.set(numberMatch[1], file);
+          }
         }
+
+        console.log('Medya map\'e eklenen dosyalar:', this.mediaMap.size, 'adet');
+        console.log('Medya dosyaları örnekleri:', Array.from(this.mediaMap.keys()).slice(0, 20));
 
         this.container.innerHTML = '';
         this.lastDate = null;
 
         // Virtual scrolling için sadece görünen mesajları render et
-        this.renderVisibleMessages();
+        await this.renderVisibleMessages();
         this.setupVirtualScrolling();
       },
 
@@ -1222,11 +1236,19 @@
         // Dosya adını temizle (özel karakterleri kaldır)
         mediaName = mediaName.replace(/[<>]/g, '').trim();
         
-        console.log('Aranan medya:', mediaName);
-        console.log('Mevcut medya dosyaları:', Array.from(this.mediaMap.keys()).slice(0, 10));
+        // Path'ten sadece dosya adını al
+        const mediaNameOnly = mediaName.split('/').pop();
         
-        // Önce tam eşleşme dene
+        console.log('Aranan medya:', mediaName, '| Sadece ad:', mediaNameOnly);
+        console.log('Mevcut medya dosyaları:', Array.from(this.mediaMap.keys()).slice(0, 20));
+        
+        // Önce tam eşleşme dene (tam dosya adı)
         mediaFile = this.mediaMap.get(mediaName);
+        
+        // Sadece dosya adı ile dene
+        if (!mediaFile) {
+          mediaFile = this.mediaMap.get(mediaNameOnly);
+        }
         
         // Eğer bulunamazsa, farklı eşleştirme yöntemleri dene
         if (!mediaFile) {
