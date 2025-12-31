@@ -1613,7 +1613,12 @@
     // Close modal on escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        closeMediaModal();
+        const datePicker = document.getElementById('date-picker-modal');
+        if (datePicker.classList.contains('active')) {
+          closeDatePicker();
+        } else {
+          closeMediaModal();
+        }
       }
     });
     
