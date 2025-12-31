@@ -1090,7 +1090,7 @@
         for (let i = 0; i < this.messages.length; i++) {
           const message = this.messages[i];
           const previousMessage = i > 0 ? this.messages[i - 1] : null;
-          const messageEl = this.createMessageElement(message, previousMessage);
+          const messageEl = await this.createMessageElement(message, previousMessage);
           fragment.appendChild(messageEl);
         }
 
@@ -1191,7 +1191,8 @@
         bubble.className = 'message-bubble';
 
         if (message.isMedia && message.media) {
-          this.createMediaElement(bubble, message);
+          // Medya dosyası varsa görüntüle (async)
+          await this.createMediaElement(bubble, message);
         } else {
           const text = document.createElement('div');
           text.className = 'message-text';
