@@ -1096,61 +1096,54 @@
           lastScrollTop = scrollTop;
           lastScrollTime = currentTime;
           
-          // Fast scroll: jump to next/previous month
+          // Fast scroll: jump to next/previous month (throttled)
           if (isFastScrolling && dateSeparators.length > 0) {
-            const prevScrollTop = lastScrollTop;
-            const direction = scrollTop > prevScrollTop ? 'down' : 'up';
-            const nearest = findNearestDateSeparator(scrollTop, direction);
-            
-            if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 100) {
-              // Smooth scroll to date separator
-              container.scrollTo({
-                top: nearest.offsetTop - 20,
-                behavior: 'smooth'
-              });
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+              const direction = scrollTop > lastScrollTop ? 'down' : 'up';
+              const nearest = findNearestDateSeparator(scrollTop, direction);
               
-              // Reset fast scrolling flag after a delay
-              setTimeout(() => {
-                isFastScrolling = false;
-              }, 300);
-            }
+              if (nearest && Math.abs(nearest.offsetTop - scrollTop) > 150) {
+                container.scrollTo({
+                  top: nearest.offsetTop - 20,
+                  behavior: 'smooth'
+                });
+                
+                setTimeout(() => {
+                  isFastScrolling = false;
+                }, 500);
+              }
+            }, 200);
           }
           
-          // Virtual scrolling logic (throttled with requestAnimationFrame)
+          // Virtual scrolling logic (simplified)
           clearTimeout(scrollTimeout);
           scrollTimeout = setTimeout(() => {
-            requestAnimationFrame(() => {
-              // Load more when near bottom
-              if (scrollTop + clientHeight > scrollHeight - 500 && visibleEnd < messages.length) {
-                const oldHeight = container.scrollHeight;
-                visibleEnd = Math.min(visibleEnd + itemsPerPage, messages.length);
-                renderMessageBatch(visibleStart, visibleEnd);
-                const newHeight = container.scrollHeight;
-                // Smooth scroll position update
-                requestAnimationFrame(() => {
-                  container.scrollTop = scrollTop + (newHeight - oldHeight);
-                });
-                buildDateSeparatorMap(); // Rebuild after render
+            // Load more when near bottom
+            if (scrollTop + clientHeight > scrollHeight - 500 && visibleEnd < messages.length) {
+              const oldHeight = container.scrollHeight;
+              visibleEnd = Math.min(visibleEnd + itemsPerPage, messages.length);
+              renderMessageBatch(visibleStart, visibleEnd);
+              const newHeight = container.scrollHeight;
+              container.scrollTop = scrollTop + (newHeight - oldHeight);
+              buildDateSeparatorMap();
+            }
+            
+            // Load previous when near top
+            if (scrollTop < 500 && visibleStart > 0) {
+              const oldHeight = container.scrollHeight;
+              const loadCount = Math.min(itemsPerPage, visibleStart);
+              visibleStart = Math.max(0, visibleStart - itemsPerPage);
+              const fragment = createMessageFragment(visibleStart, visibleStart + loadCount);
+              const firstChild = container.firstElementChild;
+              if (firstChild) {
+                container.insertBefore(fragment, firstChild);
               }
-              
-              // Load previous when near top
-              if (scrollTop < 500 && visibleStart > 0) {
-                const oldHeight = container.scrollHeight;
-                const loadCount = Math.min(itemsPerPage, visibleStart);
-                visibleStart = Math.max(0, visibleStart - itemsPerPage);
-                const fragment = createMessageFragment(visibleStart, visibleStart + loadCount);
-                const firstChild = container.firstElementChild;
-                if (firstChild) {
-                  container.insertBefore(fragment, firstChild);
-                }
-                const newHeight = container.scrollHeight;
-                requestAnimationFrame(() => {
-                  container.scrollTop = scrollTop + (newHeight - oldHeight);
-                });
-                buildDateSeparatorMap(); // Rebuild after render
-              }
-            });
-          }, 50);
+              const newHeight = container.scrollHeight;
+              container.scrollTop = scrollTop + (newHeight - oldHeight);
+              buildDateSeparatorMap();
+            }
+          }, 100);
         });
         
         // Initial build of date separator map
