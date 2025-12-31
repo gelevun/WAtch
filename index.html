@@ -618,7 +618,8 @@
       let currentMessage = null;
       
       const dateRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}:\d{2})\]\s+(.+?):\s*(.+)$/;
-      const mediaRegex = /<([^>]+)\s+eklendi>/;
+      // More flexible media regex - handles invisible characters and various formats
+      const mediaRegex = /[<‎<]?\s*([^>\s]+\.(jpg|jpeg|png|gif|webp|opus|mp3|wav|m4a|pdf|vcf|xlsx|xls|doc|docx))\s+eklendi[>]?/i;
       
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -634,19 +635,32 @@
           
           // New message
           const [, date, time, sender, content] = dateMatch;
-          const mediaMatch = content.match(mediaRegex);
+          // Clean content from invisible characters
+          const cleanContent = content.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim();
+          const mediaMatch = cleanContent.match(mediaRegex);
+          
+          let mediaFileName = null;
+          if (mediaMatch) {
+            mediaFileName = mediaMatch[1].trim();
+          }
           
           currentMessage = {
             date: parseDate(date),
             time: time,
             sender: sender.trim(),
-            text: mediaMatch ? '' : content.trim(),
-            media: mediaMatch ? mediaMatch[1] : null,
+            text: mediaFileName ? '' : cleanContent,
+            media: mediaFileName,
             timestamp: new Date(parseDate(date) + ' ' + time)
           };
         } else if (currentMessage) {
-          // Continuation of previous message
-          currentMessage.text += '\n' + line;
+          // Continuation of previous message - check for media in continuation
+          const mediaMatch = line.match(mediaRegex);
+          if (mediaMatch) {
+            currentMessage.media = mediaMatch[1].trim();
+            currentMessage.text = '';
+          } else {
+            currentMessage.text += '\n' + line;
+          }
         }
       }
       
@@ -730,16 +744,53 @@
     async function getMediaFile(fileName) {
       if (!db) return null;
       
+      // Clean filename from any invisible characters
+      const cleanFileName = fileName.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim();
+      
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(['media'], 'readonly');
         const store = transaction.objectStore('media');
-        const request = store.get(fileName);
+        
+        // Try exact match with cleaned filename first
+        let request = store.get(cleanFileName);
         
         request.onsuccess = () => {
           if (request.result) {
             resolve(new Blob([request.result]));
           } else {
-            resolve(null);
+            // Try with original filename
+            const originalRequest = store.get(fileName);
+            originalRequest.onsuccess = () => {
+              if (originalRequest.result) {
+                resolve(new Blob([originalRequest.result]));
+              } else {
+                // Try finding matching key from mediaFiles map
+                let foundKey = null;
+                for (const key of mediaFiles.keys()) {
+                  const cleanKey = key.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim();
+                  if (cleanKey === cleanFileName || key === cleanFileName || 
+                      cleanKey.includes(cleanFileName) || cleanFileName.includes(cleanKey)) {
+                    foundKey = key;
+                    break;
+                  }
+                }
+                
+                if (foundKey) {
+                  const matchRequest = store.get(foundKey);
+                  matchRequest.onsuccess = () => {
+                    if (matchRequest.result) {
+                      resolve(new Blob([matchRequest.result]));
+                    } else {
+                      resolve(null);
+                    }
+                  };
+                  matchRequest.onerror = () => resolve(null);
+                } else {
+                  resolve(null);
+                }
+              }
+            };
+            originalRequest.onerror = () => resolve(null);
           }
         };
         
@@ -922,9 +973,25 @@
     
     // Render media
     async function renderMedia(container, fileName) {
-      const mediaInfo = mediaFiles.get(fileName);
+      // Clean filename from any invisible characters
+      const cleanFileName = fileName.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim();
+      
+      // Try exact match first
+      let mediaInfo = mediaFiles.get(cleanFileName);
+      
+      // If not found, try to find by partial match (in case of encoding issues)
       if (!mediaInfo) {
-        container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Medya bulunamadı: ' + fileName + '</div>';
+        for (const [key, value] of mediaFiles.entries()) {
+          if (key.includes(cleanFileName) || cleanFileName.includes(key)) {
+            mediaInfo = value;
+            break;
+          }
+        }
+      }
+      
+      if (!mediaInfo) {
+        container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Medya bulunamadı: ' + cleanFileName + '<br><small>Dosya adı: ' + fileName + '</small></div>';
+        console.warn('Media not found:', cleanFileName, 'Available files:', Array.from(mediaFiles.keys()).slice(0, 10));
         return;
       }
       
@@ -936,23 +1003,24 @@
       if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
         // Image
         try {
-          const blob = await getMediaFile(fileName);
+          const blob = await getMediaFile(cleanFileName);
           if (blob) {
             const url = URL.createObjectURL(blob);
             const img = document.createElement('img');
             img.src = url;
-            img.alt = fileName;
+            img.alt = cleanFileName;
             img.loading = 'lazy';
             img.style.display = 'block';
             img.style.width = '100%';
             img.style.maxWidth = '300px';
             img.style.height = 'auto';
             preview.appendChild(img);
-            preview.onclick = () => showMediaModal(fileName, 'image', url);
+            preview.onclick = () => showMediaModal(cleanFileName, 'image', url);
             container.innerHTML = ''; // Clear loading message
             container.appendChild(preview);
           } else {
-            container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Resim yüklenemedi</div>';
+            container.innerHTML = '<div style="color: #8696a0; font-size: 12px; padding: 8px;">Resim yüklenemedi: ' + cleanFileName + '<br><small>Mevcut dosyalar: ' + Array.from(mediaFiles.keys()).slice(0, 3).join(', ') + '</small></div>';
+            console.error('Image not found in IndexedDB:', cleanFileName);
             return;
           }
         } catch (error) {
